@@ -9,12 +9,23 @@ templ Layout(title string, drinkers []DrinkerOption) {
 			<title>{ title }</title>
 			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"/>
 			<script src="https://unpkg.com/htmx.org@2.0.3"></script>
+			<script>
+				// Swap 422 responses (server-rendered validation errors) in addition
+				// to htmx's default 2xx/3xx swapping. Without this, a form re-rendered
+				// with field errors on a 422 never reaches the screen.
+				htmx.config.responseHandling = [
+					{ code: "422", swap: true },
+					{ code: "[23]..", swap: true },
+					{ code: "[45]..", swap: false, error: true },
+					{ code: "...", swap: false },
+				];
+			</script>
 			<style>
 				/* Domain accents only — everything else is Pico's classless defaults. */
 				.rating { color: #d9534f; letter-spacing: 2px; }
 			</style>
 		</head>
-		<body>
+		<body hx-boost="true">
 			<main class="container">
 				<nav>
 					<ul><li><strong>🍷 go-wine</strong></li></ul>

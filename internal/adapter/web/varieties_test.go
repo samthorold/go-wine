@@ -17,6 +17,7 @@ func TestVarieties_GetListsSeededVarieties(t *testing.T) {
 	wines := memory.NewWineRepo()
 	tastings := memory.NewTastingRepo()
 	varieties := memory.NewVarietyRepo()
+	companions := memory.NewCompanionRepo()
 
 	d, _ := domain.NewDrinker("Sam")
 	drinkers.Save(d)
@@ -24,9 +25,9 @@ func TestVarieties_GetListsSeededVarieties(t *testing.T) {
 	varieties.Save(v)
 
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
-	listH := app.NewListTastingsHandler(wines, tastings)
+	listH := app.NewListTastingsHandler(wines, tastings, companions)
 	listV := app.NewListVarietiesHandler(varieties)
-	srv := web.NewServer(drinkers, wines, logH, listH, listV)
+	srv := web.NewServer(drinkers, wines, companions, logH, listH, listV)
 
 	req := httptest.NewRequest(http.MethodGet, "/varieties", nil)
 	rec := httptest.NewRecorder()

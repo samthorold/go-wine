@@ -96,6 +96,38 @@ func TestLogForm_RendersFormLevelBanner(t *testing.T) {
 	}
 }
 
+func TestTastingRow_ShowsCompanions(t *testing.T) {
+	view := app.TastingView{
+		WineLabel:  "Penfolds — Bin 28 Shiraz",
+		Rating:     4,
+		Companions: []string{"Alex", "Jo"},
+		DrunkOn:    time.Now(),
+	}
+	html := render(t, TastingRow(view))
+
+	if !strings.Contains(html, "Alex") || !strings.Contains(html, "Jo") {
+		t.Errorf("row should show the companions; got:\n%s", html)
+	}
+}
+
+func TestLogForm_OffersExistingCompanionsAndNewInput(t *testing.T) {
+	model := LogFormModel{
+		Wines:      []WineOption{{ID: "w1", Label: "Penfolds — Bin 28 Shiraz"}},
+		Companions: []CompanionOption{{ID: "c1", Name: "Alex"}, {ID: "c2", Name: "Jo"}},
+	}
+	html := render(t, LogForm(model))
+
+	if !strings.Contains(html, "Alex") || !strings.Contains(html, "Jo") {
+		t.Errorf("form should offer existing companions to pick; got:\n%s", html)
+	}
+	if !strings.Contains(html, `name="companion_id"`) {
+		t.Errorf("form should let you pick existing companions by id; got:\n%s", html)
+	}
+	if !strings.Contains(html, `name="new_companions"`) {
+		t.Errorf("form should let you add new companion names; got:\n%s", html)
+	}
+}
+
 func TestTastingList_OOB(t *testing.T) {
 	html := render(t, TastingListOOB(nil))
 	if !strings.Contains(html, `hx-swap-oob="true"`) {

@@ -21,10 +21,11 @@ func main() {
 	ctx := context.Background()
 
 	var (
-		drinkers  domain.DrinkerRepository
-		wines     domain.WineRepository
-		tastings  domain.TastingRepository
-		varieties domain.VarietyRepository
+		drinkers   domain.DrinkerRepository
+		wines      domain.WineRepository
+		tastings   domain.TastingRepository
+		varieties  domain.VarietyRepository
+		companions domain.CompanionRepository
 	)
 
 	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
@@ -43,18 +44,20 @@ func main() {
 		wines = postgres.NewWineRepo(pool)
 		tastings = postgres.NewTastingRepo(pool)
 		varieties = postgres.NewVarietyRepo(pool)
+		companions = postgres.NewCompanionRepo(pool)
 		log.Println("store: postgres")
 	} else {
-		md, mw, mt, mv := memory.NewDrinkerRepo(), memory.NewWineRepo(), memory.NewTastingRepo(), memory.NewVarietyRepo()
-		seedMemory(md, mw, mv)
-		drinkers, wines, tastings, varieties = md, mw, mt, mv
+		md, mw, mt := memory.NewDrinkerRepo(), memory.NewWineRepo(), memory.NewTastingRepo()
+		mv, mc := memory.NewVarietyRepo(), memory.NewCompanionRepo()
+		seedMemory(md, mw, mv, mc)
+		drinkers, wines, tastings, varieties, companions = md, mw, mt, mv, mc
 		log.Println("store: in-memory (set DATABASE_URL for Postgres)")
 	}
 
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
-	listH := app.NewListTastingsHandler(wines, tastings)
+	listH := app.NewListTastingsHandler(wines, tastings, companions)
 	listV := app.NewListVarietiesHandler(varieties)
-	srv := web.NewServer(drinkers, wines, logH, listH, listV)
+	srv := web.NewServer(drinkers, wines, companions, logH, listH, listV)
 
 	addr := ":" + envOr("PORT", "8080")
 	log.Printf("go-wine listening on %s", addr)
@@ -63,10 +66,19 @@ func main() {
 	}
 }
 
-func seedMemory(drinkers *memory.DrinkerRepo, wines *memory.WineRepo, varieties *memory.VarietyRepo) {
+func seedMemory(drinkers *memory.DrinkerRepo, wines *memory.WineRepo, varieties *memory.VarietyRepo, companions *memory.CompanionRepo) {
 	for _, name := range []string{"Sam", "Partner"} {
-		if d, err := domain.NewDrinker(name); err == nil {
-			drinkers.Save(d)
+		d, err := domain.NewDrinker(name)
+		if err != nil {
+			continue
+		}
+		drinkers.Save(d)
+		// A couple of Companions in each Drinker's personal zone so the picker is
+		// populated. Scoped to the Drinker — never linked across owners.
+		for _, cn := range []string{"Alex", "Jo"} {
+			if c, err := domain.NewCompanion(d.ID, cn); err == nil {
+				_ = companions.Add(context.Background(), c)
+			}
 		}
 	}
 	seed := []struct{ producer, name, style string }{

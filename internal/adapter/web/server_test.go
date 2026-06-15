@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,10 +18,18 @@ import (
 // single Drinker and a single Wine, returning the server, that Drinker, and
 // that Wine.
 func newTestServer(t *testing.T) (*web.Server, domain.Drinker, domain.Wine) {
+	srv, d, w, _ := newTestServerWithCompanions(t)
+	return srv, d, w
+}
+
+// newTestServerWithCompanions also exposes the in-memory CompanionRepo so tests
+// can seed existing Companions and assert that new ones get persisted.
+func newTestServerWithCompanions(t *testing.T) (*web.Server, domain.Drinker, domain.Wine, *memory.CompanionRepo) {
 	t.Helper()
 	drinkers := memory.NewDrinkerRepo()
 	wines := memory.NewWineRepo()
 	tastings := memory.NewTastingRepo()
+	companions := memory.NewCompanionRepo()
 
 	d, err := domain.NewDrinker("Sam")
 	if err != nil {
@@ -35,9 +44,9 @@ func newTestServer(t *testing.T) (*web.Server, domain.Drinker, domain.Wine) {
 	wines.Save(w)
 
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
-	listH := app.NewListTastingsHandler(wines, tastings)
+	listH := app.NewListTastingsHandler(wines, tastings, companions)
 	listV := app.NewListVarietiesHandler(memory.NewVarietyRepo())
-	return web.NewServer(drinkers, wines, logH, listH, listV), d, w
+	return web.NewServer(drinkers, wines, companions, logH, listH, listV), d, w, companions
 }
 
 func TestSwitch_PostSetsCookieAndRedirectsToTastings(t *testing.T) {
@@ -124,6 +133,43 @@ func TestLogTasting_SuccessSwapsFormAndOOBList(t *testing.T) {
 	// list row, never re-populated into the textarea.
 	if strings.Contains(body, `cosy...">lamb stew`) {
 		t.Errorf("fresh form should be empty, note must not be preserved; got:\n%s", body)
+	}
+}
+
+func TestLogTasting_PicksExistingAndAddsNewCompanions(t *testing.T) {
+	srv, d, w, companions := newTestServerWithCompanions(t)
+
+	alex, _ := domain.NewCompanion(d.ID, "Alex")
+	if err := companions.Add(context.Background(), alex); err != nil {
+		t.Fatalf("seed companion: %v", err)
+	}
+
+	rec := postTasting(t, srv, url.Values{
+		"wine_id":        {w.ID.String()},
+		"rating":         {"4"},
+		"companion_id":   {alex.ID.String()},
+		"new_companions": {"Jo"},
+	})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Alex") || !strings.Contains(body, "Jo") {
+		t.Errorf("OOB list should show both the picked and the new companion; got:\n%s", body)
+	}
+
+	// The new Companion is persisted in the Drinker's personal zone.
+	cs, err := companions.ListByDrinker(context.Background(), d.ID)
+	if err != nil {
+		t.Fatalf("list companions: %v", err)
+	}
+	var names []string
+	for _, c := range cs {
+		names = append(names, c.Name)
+	}
+	if len(cs) != 2 {
+		t.Fatalf("expected Alex + Jo persisted, got %v", names)
 	}
 }
 

@@ -2,6 +2,7 @@ package views
 
 import (
 	"strconv"
+	"strings"
 
 	"go-wine/internal/app"
 )
@@ -78,6 +79,21 @@ templ LogForm(model LogFormModel) {
 			Note
 			<textarea name="note" rows="2" placeholder="cold night, lamb stew, cosy...">{ model.Note }</textarea>
 		</label>
+		<fieldset>
+			<legend>Companions</legend>
+			if len(model.Companions) > 0 {
+				for _, c := range model.Companions {
+					<label class="companion">
+						<input type="checkbox" name="companion_id" value={ c.ID } checked?={ model.companionSelected(c.ID) }/>
+						{ c.Name }
+					</label>
+				}
+			}
+			<label>
+				Add new
+				<input type="text" name="new_companions" placeholder="Alex, Jo" value={ model.NewCompanions }/>
+			</label>
+		</fieldset>
 		<button type="submit">Log tasting</button>
 	</form>
 }
@@ -90,6 +106,9 @@ templ TastingRow(t app.TastingView) {
 		}
 		<span class="rating">{ ratingStars(t.Rating) }</span>
 		<div>{ t.DrunkOn.Format("2 Jan 2006") }</div>
+		if len(t.Companions) > 0 {
+			<p class="companions">with { strings.Join(t.Companions, ", ") }</p>
+		}
 		if t.Note != "" {
 			<p>{ t.Note }</p>
 		}

@@ -15,6 +15,10 @@ implementation-agnostic; the code encodes them. Language is defined once in
   explicit (rating, Companions).
 - [data-ownership.md](./data-ownership.md) — the personal/reference zone
   partition, and multi-tenancy via a Drinker switcher without authentication.
+- [hypermedia-ui.md](./hypermedia-ui.md) — why the UI is hypermedia-driven
+  (server owns all markup and state, no client data API), required rather than
+  JS-optional, a boosted multi-page app carved along swap boundaries, with
+  failed commands re-rendering their form.
 
 ## The v1 line
 

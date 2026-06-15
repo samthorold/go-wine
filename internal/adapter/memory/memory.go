@@ -1,0 +1,112 @@
+// Package memory holds in-memory implementations of the domain repository
+// ports. They back fast, containerless unit tests; the Postgres adapter is the
+// production counterpart exercised by integration tests.
+package memory
+
+import (
+	"context"
+	"sync"
+
+	"go-wine/internal/domain"
+)
+
+// DrinkerRepo is an in-memory domain.DrinkerRepository.
+type DrinkerRepo struct {
+	mu   sync.RWMutex
+	data map[domain.ID]domain.Drinker
+}
+
+func NewDrinkerRepo() *DrinkerRepo {
+	return &DrinkerRepo{data: make(map[domain.ID]domain.Drinker)}
+}
+
+func (r *DrinkerRepo) Save(d domain.Drinker) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.data[d.ID] = d
+}
+
+func (r *DrinkerRepo) Get(_ context.Context, id domain.ID) (domain.Drinker, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	d, ok := r.data[id]
+	if !ok {
+		return domain.Drinker{}, domain.ErrNotFound
+	}
+	return d, nil
+}
+
+func (r *DrinkerRepo) List(_ context.Context) ([]domain.Drinker, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]domain.Drinker, 0, len(r.data))
+	for _, d := range r.data {
+		out = append(out, d)
+	}
+	return out, nil
+}
+
+// WineRepo is an in-memory domain.WineRepository.
+type WineRepo struct {
+	mu   sync.RWMutex
+	data map[domain.ID]domain.Wine
+}
+
+func NewWineRepo() *WineRepo {
+	return &WineRepo{data: make(map[domain.ID]domain.Wine)}
+}
+
+func (r *WineRepo) Save(w domain.Wine) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.data[w.ID] = w
+}
+
+func (r *WineRepo) Get(_ context.Context, id domain.ID) (domain.Wine, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	w, ok := r.data[id]
+	if !ok {
+		return domain.Wine{}, domain.ErrNotFound
+	}
+	return w, nil
+}
+
+func (r *WineRepo) List(_ context.Context) ([]domain.Wine, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]domain.Wine, 0, len(r.data))
+	for _, w := range r.data {
+		out = append(out, w)
+	}
+	return out, nil
+}
+
+// TastingRepo is an in-memory domain.TastingRepository.
+type TastingRepo struct {
+	mu   sync.RWMutex
+	data map[domain.ID]domain.Tasting
+}
+
+func NewTastingRepo() *TastingRepo {
+	return &TastingRepo{data: make(map[domain.ID]domain.Tasting)}
+}
+
+func (r *TastingRepo) Add(_ context.Context, t domain.Tasting) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.data[t.ID] = t
+	return nil
+}
+
+func (r *TastingRepo) ListByDrinker(_ context.Context, drinkerID domain.ID) ([]domain.Tasting, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]domain.Tasting, 0)
+	for _, t := range r.data {
+		if t.DrinkerID == drinkerID {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}

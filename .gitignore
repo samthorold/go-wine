@@ -1,0 +1,10 @@
+# Binaries
+/web
+/cmd/web/web
+*.out
+
+# Generated templ Go (regenerate with `make generate`)
+*_templ.go
+
+# Local env
+.env

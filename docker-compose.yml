@@ -1,0 +1,30 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: wine
+      POSTGRES_PASSWORD: wine
+      POSTGRES_DB: wine
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wine -d wine"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgres://wine:wine@db:5432/wine?sslmode=disable
+      PORT: "8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -1,0 +1,64 @@
+package views
+
+import (
+	"strconv"
+
+	"go-wine/internal/app"
+)
+
+templ TastingsPage(drinkers []DrinkerOption, wines []WineOption, tastings []app.TastingView) {
+	@Layout("Tastings", drinkers) {
+		<h2>Log a tasting</h2>
+		@LogForm(wines)
+		<h2>Your tastings</h2>
+		<div id="tastings">
+			for _, t := range tastings {
+				@TastingRow(t)
+			}
+		</div>
+	}
+}
+
+templ LogForm(wines []WineOption) {
+	<form class="log" hx-post="/tastings" hx-target="#tastings" hx-swap="afterbegin">
+		<label>
+			Wine
+			<select name="wine_id" required>
+				for _, w := range wines {
+					<option value={ w.ID }>{ w.Label }</option>
+				}
+			</select>
+		</label>
+		<label>
+			Vintage
+			<input type="number" name="vintage" placeholder="2019" min="1900" max="2100"/>
+		</label>
+		<label>
+			Rating
+			<select name="rating" required>
+				for r := 5; r >= 1; r-- {
+					<option value={ strconv.Itoa(r) }>{ strconv.Itoa(r) }</option>
+				}
+			</select>
+		</label>
+		<label>
+			Note
+			<textarea name="note" rows="2" placeholder="cold night, lamb stew, cosy..."></textarea>
+		</label>
+		<button type="submit">Log tasting</button>
+	</form>
+}
+
+templ TastingRow(t app.TastingView) {
+	<div class="tasting">
+		<strong>{ t.WineLabel }</strong>
+		if t.Vintage != nil {
+			<span>({ strconv.Itoa(*t.Vintage) })</span>
+		}
+		<span class="rating">{ ratingStars(t.Rating) }</span>
+		<div>{ t.DrunkOn.Format("2 Jan 2006") }</div>
+		if t.Note != "" {
+			<p>{ t.Note }</p>
+		}
+	</div>
+}

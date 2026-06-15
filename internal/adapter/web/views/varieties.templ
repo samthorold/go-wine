@@ -1,0 +1,27 @@
+package views
+
+import "go-wine/internal/app"
+
+// VarietiesPage is the browse view for the global set of Varieties (grapes).
+// A Drinker can navigate to and bookmark it, so it is a page: Layout + content.
+templ VarietiesPage(drinkers []DrinkerOption, varieties []app.VarietyView) {
+	@Layout("Varieties", drinkers) {
+		<h2>Varieties</h2>
+		@VarietyList(varieties)
+	}
+}
+
+// VarietyList renders the #varieties region.
+templ VarietyList(varieties []app.VarietyView) {
+	<div id="varieties">
+		if len(varieties) == 0 {
+			<p class="empty">No varieties yet.</p>
+		} else {
+			<ul>
+				for _, v := range varieties {
+					<li>{ v.Name }</li>
+				}
+			</ul>
+		}
+	</div>
+}

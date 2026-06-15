@@ -17,6 +17,13 @@ type WineRepository interface {
 	List(ctx context.Context) ([]Wine, error)
 }
 
+// VarietyRepository owns Varieties — global reference data, not scoped to a
+// Drinker.
+type VarietyRepository interface {
+	Get(ctx context.Context, id ID) (Variety, error)
+	List(ctx context.Context) ([]Variety, error)
+}
+
 // TastingRepository owns Tastings. Reads are always scoped to a Drinker — the
 // personal zone is never queried across owners.
 type TastingRepository interface {

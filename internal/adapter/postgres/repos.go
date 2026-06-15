@@ -80,6 +80,40 @@ func (r *WineRepo) List(ctx context.Context) ([]domain.Wine, error) {
 	return out, rows.Err()
 }
 
+// VarietyRepo implements domain.VarietyRepository.
+type VarietyRepo struct{ pool *pgxpool.Pool }
+
+func NewVarietyRepo(p *pgxpool.Pool) *VarietyRepo { return &VarietyRepo{pool: p} }
+
+func (r *VarietyRepo) Get(ctx context.Context, id domain.ID) (domain.Variety, error) {
+	var idStr, name string
+	err := r.pool.QueryRow(ctx, `SELECT id, name FROM varieties WHERE id=$1`, id.String()).Scan(&idStr, &name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Variety{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.Variety{}, err
+	}
+	return domain.Variety{ID: domain.ID(idStr), Name: name}, nil
+}
+
+func (r *VarietyRepo) List(ctx context.Context) ([]domain.Variety, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id, name FROM varieties ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.Variety
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		out = append(out, domain.Variety{ID: domain.ID(id), Name: name})
+	}
+	return out, rows.Err()
+}
+
 // TastingRepo implements domain.TastingRepository.
 type TastingRepo struct{ pool *pgxpool.Pool }
 

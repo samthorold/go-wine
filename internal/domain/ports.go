@@ -30,3 +30,12 @@ type TastingRepository interface {
 	Add(ctx context.Context, t Tasting) error
 	ListByDrinker(ctx context.Context, drinkerID ID) ([]Tasting, error)
 }
+
+// CompanionRepository owns Companions — personal-zone reference data. Like
+// Tastings, Companions are always scoped to a Drinker; they are never queried
+// across owners.
+type CompanionRepository interface {
+	Add(ctx context.Context, c Companion) error
+	Get(ctx context.Context, id ID) (Companion, error)
+	ListByDrinker(ctx context.Context, drinkerID ID) ([]Companion, error)
+}

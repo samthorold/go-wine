@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"go-wine/internal/adapter/web/views"
@@ -26,9 +27,10 @@ type Server struct {
 	listVarieties *app.ListVarietiesHandler
 	drinkers      domain.DrinkerRepository
 	wines         domain.WineRepository
+	companions    domain.CompanionRepository
 }
 
-func NewServer(d domain.DrinkerRepository, w domain.WineRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler) *Server {
+func NewServer(d domain.DrinkerRepository, w domain.WineRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler) *Server {
 	s := &Server{
 		mux:           http.NewServeMux(),
 		logTasting:    logH,
@@ -36,6 +38,7 @@ func NewServer(d domain.DrinkerRepository, w domain.WineRepository, logH *app.Lo
 		listVarieties: listV,
 		drinkers:      d,
 		wines:         w,
+		companions:    c,
 	}
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /tastings", s.handleTastings)
@@ -68,12 +71,17 @@ func (s *Server) handleTastings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	copts, err := s.companionOptions(ctx, active.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	tastings, err := s.listTastings.Handle(ctx, active.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = views.TastingsPage(dopts, views.LogFormModel{Wines: wopts}, tastings).Render(ctx, w)
+	_ = views.TastingsPage(dopts, views.LogFormModel{Wines: wopts, Companions: copts}, tastings).Render(ctx, w)
 }
 
 func (s *Server) handleVarieties(w http.ResponseWriter, r *http.Request) {
@@ -118,20 +126,27 @@ func (s *Server) handleLogTasting(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	companionIDs, err := s.resolveCompanions(ctx, active.ID, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	now := time.Now()
 	_, err = s.logTasting.Handle(ctx, app.LogTastingCommand{
-		DrinkerID: active.ID,
-		WineID:    wineID,
-		Vintage:   vintage,
-		Rating:    rating,
-		Note:      note,
-		DrunkOn:   now,
+		DrinkerID:  active.ID,
+		WineID:     wineID,
+		Vintage:    vintage,
+		Rating:     rating,
+		Note:       note,
+		Companions: companionIDs,
+		DrunkOn:    now,
 	})
 	if err != nil {
 		// Validation failure: re-render the form (422, which htmx swaps) with the
 		// entered values preserved and the error against the offending field. The
 		// tastings list is untouched, so no OOB fragment.
-		model := s.logFormModel(ctx, r)
+		model := s.logFormModel(ctx, active.ID, r)
 		model.Errors = logTastingErrors(err)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = views.LogForm(model).Render(ctx, w)
@@ -141,22 +156,75 @@ func (s *Server) handleLogTasting(w http.ResponseWriter, r *http.Request) {
 	// Success: the primary target (#log-form) swaps to a fresh empty form, and
 	// the #tastings list updates out-of-band in the same response.
 	wopts, _ := s.wineOptions(ctx)
+	copts, _ := s.companionOptions(ctx, active.ID)
 	tastings, _ := s.listTastings.Handle(ctx, active.ID)
-	_ = views.LogForm(views.LogFormModel{Wines: wopts}).Render(ctx, w)
+	_ = views.LogForm(views.LogFormModel{Wines: wopts, Companions: copts}).Render(ctx, w)
 	_ = views.TastingListOOB(tastings).Render(ctx, w)
+}
+
+// resolveCompanions turns the submitted form into a set of Companion IDs to
+// attach: the existing Companions ticked (validated to belong to the active
+// Drinker's personal zone) plus any new names typed, each persisted as a fresh
+// Companion scoped to the active Drinker.
+func (s *Server) resolveCompanions(ctx context.Context, drinkerID domain.ID, r *http.Request) ([]domain.ID, error) {
+	owned := make(map[domain.ID]bool)
+	existing, err := s.companions.ListByDrinker(ctx, drinkerID)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range existing {
+		owned[c.ID] = true
+	}
+
+	var ids []domain.ID
+	for _, raw := range r.Form["companion_id"] {
+		id := domain.ID(raw)
+		if owned[id] { // never attach a Companion from another Drinker's zone
+			ids = append(ids, id)
+		}
+	}
+
+	for _, name := range parseNewCompanions(r.FormValue("new_companions")) {
+		c, err := domain.NewCompanion(drinkerID, name)
+		if err != nil {
+			continue // skip blanks rather than fail the whole tasting
+		}
+		if err := s.companions.Add(ctx, c); err != nil {
+			return nil, err
+		}
+		ids = append(ids, c.ID)
+	}
+	return ids, nil
+}
+
+// parseNewCompanions splits the free-text "add new" field into trimmed names,
+// separated by commas or newlines, dropping blanks.
+func parseNewCompanions(s string) []string {
+	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == '\n' || r == '\r' })
+	out := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if name := strings.TrimSpace(f); name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // logFormModel rebuilds the form's view model from the submitted request,
 // preserving the entered values so a failed submit re-renders what the Drinker
 // typed. Errors are filled in by the caller.
-func (s *Server) logFormModel(ctx context.Context, r *http.Request) views.LogFormModel {
+func (s *Server) logFormModel(ctx context.Context, drinkerID domain.ID, r *http.Request) views.LogFormModel {
 	wopts, _ := s.wineOptions(ctx)
+	copts, _ := s.companionOptions(ctx, drinkerID)
 	return views.LogFormModel{
-		Wines:   wopts,
-		WineID:  r.FormValue("wine_id"),
-		Vintage: r.FormValue("vintage"),
-		Rating:  r.FormValue("rating"),
-		Note:    r.FormValue("note"),
+		Wines:         wopts,
+		Companions:    copts,
+		WineID:        r.FormValue("wine_id"),
+		Vintage:       r.FormValue("vintage"),
+		Rating:        r.FormValue("rating"),
+		Note:          r.FormValue("note"),
+		CompanionIDs:  r.Form["companion_id"],
+		NewCompanions: r.FormValue("new_companions"),
 	}
 }
 
@@ -211,6 +279,19 @@ func (s *Server) drinkerOptions(ctx context.Context, activeID domain.ID) ([]view
 	opts := make([]views.DrinkerOption, 0, len(ds))
 	for _, d := range ds {
 		opts = append(opts, views.DrinkerOption{ID: d.ID.String(), Name: d.Name, Active: d.ID == activeID})
+	}
+	return opts, nil
+}
+
+func (s *Server) companionOptions(ctx context.Context, drinkerID domain.ID) ([]views.CompanionOption, error) {
+	cs, err := s.companions.ListByDrinker(ctx, drinkerID)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(cs, func(i, j int) bool { return cs[i].Name < cs[j].Name })
+	opts := make([]views.CompanionOption, 0, len(cs))
+	for _, c := range cs {
+		opts = append(opts, views.CompanionOption{ID: c.ID.String(), Name: c.Name})
 	}
 	return opts, nil
 }

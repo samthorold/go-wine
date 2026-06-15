@@ -119,17 +119,40 @@ type TastingRepo struct{ pool *pgxpool.Pool }
 
 func NewTastingRepo(p *pgxpool.Pool) *TastingRepo { return &TastingRepo{pool: p} }
 
+// Add persists a Tasting and its Companion links atomically: the base row plus
+// one tasting_companions row per Companion, in a single transaction, so a
+// Tasting is never stored without the company it was logged with (or vice
+// versa).
 func (r *TastingRepo) Add(ctx context.Context, t domain.Tasting) error {
 	var vintage sql.NullInt64
 	if t.Vintage != nil {
 		vintage = sql.NullInt64{Int64: int64(*t.Vintage), Valid: true}
 	}
-	_, err := r.pool.Exec(ctx,
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx,
 		`INSERT INTO tastings (id, drinker_id, wine_id, vintage, rating, note, drunk_on)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		t.ID.String(), t.DrinkerID.String(), t.WineID.String(), vintage, t.Rating.Int(), t.Note, t.DrunkOn,
-	)
-	return err
+	); err != nil {
+		return err
+	}
+
+	for _, cid := range t.Companions {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO tasting_companions (tasting_id, companion_id) VALUES ($1, $2)`,
+			t.ID.String(), cid.String(),
+		); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *TastingRepo) ListByDrinker(ctx context.Context, drinkerID domain.ID) ([]domain.Tasting, error) {
@@ -170,6 +193,80 @@ func (r *TastingRepo) ListByDrinker(ctx context.Context, drinkerID domain.ID) ([
 			Note:      note,
 			DrunkOn:   drunkOn,
 		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Attach each Tasting's Companion IDs from the link table.
+	for i := range out {
+		cids, err := r.companionIDs(ctx, out[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		out[i].Companions = cids
+	}
+	return out, nil
+}
+
+func (r *TastingRepo) companionIDs(ctx context.Context, tastingID domain.ID) ([]domain.ID, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT companion_id FROM tasting_companions WHERE tasting_id=$1`, tastingID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.ID
+	for rows.Next() {
+		var cid string
+		if err := rows.Scan(&cid); err != nil {
+			return nil, err
+		}
+		out = append(out, domain.ID(cid))
+	}
+	return out, rows.Err()
+}
+
+// CompanionRepo implements domain.CompanionRepository.
+type CompanionRepo struct{ pool *pgxpool.Pool }
+
+func NewCompanionRepo(p *pgxpool.Pool) *CompanionRepo { return &CompanionRepo{pool: p} }
+
+func (r *CompanionRepo) Add(ctx context.Context, c domain.Companion) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO companions (id, drinker_id, name) VALUES ($1, $2, $3)`,
+		c.ID.String(), c.DrinkerID.String(), c.Name,
+	)
+	return err
+}
+
+func (r *CompanionRepo) Get(ctx context.Context, id domain.ID) (domain.Companion, error) {
+	var idStr, did, name string
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, drinker_id, name FROM companions WHERE id=$1`, id.String()).Scan(&idStr, &did, &name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Companion{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.Companion{}, err
+	}
+	return domain.Companion{ID: domain.ID(idStr), DrinkerID: domain.ID(did), Name: name}, nil
+}
+
+func (r *CompanionRepo) ListByDrinker(ctx context.Context, drinkerID domain.ID) ([]domain.Companion, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, drinker_id, name FROM companions WHERE drinker_id=$1 ORDER BY name`, drinkerID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.Companion
+	for rows.Next() {
+		var id, did, name string
+		if err := rows.Scan(&id, &did, &name); err != nil {
+			return nil, err
+		}
+		out = append(out, domain.Companion{ID: domain.ID(id), DrinkerID: domain.ID(did), Name: name})
 	}
 	return out, rows.Err()
 }

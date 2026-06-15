@@ -146,3 +146,42 @@ func (r *TastingRepo) ListByDrinker(_ context.Context, drinkerID domain.ID) ([]d
 	}
 	return out, nil
 }
+
+// CompanionRepo is an in-memory domain.CompanionRepository.
+type CompanionRepo struct {
+	mu   sync.RWMutex
+	data map[domain.ID]domain.Companion
+}
+
+func NewCompanionRepo() *CompanionRepo {
+	return &CompanionRepo{data: make(map[domain.ID]domain.Companion)}
+}
+
+func (r *CompanionRepo) Add(_ context.Context, c domain.Companion) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.data[c.ID] = c
+	return nil
+}
+
+func (r *CompanionRepo) Get(_ context.Context, id domain.ID) (domain.Companion, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	c, ok := r.data[id]
+	if !ok {
+		return domain.Companion{}, domain.ErrNotFound
+	}
+	return c, nil
+}
+
+func (r *CompanionRepo) ListByDrinker(_ context.Context, drinkerID domain.ID) ([]domain.Companion, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]domain.Companion, 0)
+	for _, c := range r.data {
+		if c.DrinkerID == drinkerID {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}

@@ -121,7 +121,7 @@ func TestListTastings_MostRecentFirst(t *testing.T) {
 		}
 	}
 
-	q := app.NewListTastingsHandler(wines, tastings)
+	q := app.NewListTastingsHandler(wines, tastings, memory.NewCompanionRepo())
 	views, err := q.Handle(context.Background(), d.ID)
 	if err != nil {
 		t.Fatalf("query: %v", err)

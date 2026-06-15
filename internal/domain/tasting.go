@@ -8,14 +8,14 @@ import "time"
 // anecdote) is captured in the free-text Note; everything else about the
 // occasion that stays explicit is here.
 type Tasting struct {
-	ID        ID
-	DrinkerID ID
-	WineID    ID
-	Vintage   *int // year, optional
-	Rating    Rating
-	Note      string
+	ID         ID
+	DrinkerID  ID
+	WineID     ID
+	Vintage    *int // year, optional
+	Rating     Rating
+	Note       string
 	Companions []ID
-	DrunkOn   time.Time
+	DrunkOn    time.Time
 }
 
 // NewTasting constructs a Tasting with a fresh ID. Callers pass an

@@ -57,7 +57,9 @@ func main() {
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
 	listH := app.NewListTastingsHandler(wines, tastings, companions)
 	listV := app.NewListVarietiesHandler(varieties)
-	srv := web.NewServer(drinkers, wines, companions, logH, listH, listV)
+	createD := app.NewCreateDrinkerHandler(drinkers)
+	renameD := app.NewRenameDrinkerHandler(drinkers)
+	srv := web.NewServer(drinkers, wines, companions, logH, listH, listV, createD, renameD)
 
 	addr := ":" + envOr("PORT", "8080")
 	log.Printf("go-wine listening on %s", addr)
@@ -72,7 +74,7 @@ func seedMemory(drinkers *memory.DrinkerRepo, wines *memory.WineRepo, varieties 
 		if err != nil {
 			continue
 		}
-		drinkers.Save(d)
+		_ = drinkers.Save(context.Background(), d)
 		// A couple of Companions in each Drinker's personal zone so the picker is
 		// populated. Scoped to the Drinker — never linked across owners.
 		for _, cn := range []string{"Alex", "Jo"} {

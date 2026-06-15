@@ -35,7 +35,9 @@ func newTestServerWithCompanions(t *testing.T) (*web.Server, domain.Drinker, dom
 	if err != nil {
 		t.Fatalf("new drinker: %v", err)
 	}
-	drinkers.Save(d)
+	if err := drinkers.Save(context.Background(), d); err != nil {
+		t.Fatalf("save drinker: %v", err)
+	}
 
 	w, err := domain.NewWine("Penfolds", "Bin 28 Shiraz", "Shiraz")
 	if err != nil {
@@ -46,7 +48,9 @@ func newTestServerWithCompanions(t *testing.T) (*web.Server, domain.Drinker, dom
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
 	listH := app.NewListTastingsHandler(wines, tastings, companions)
 	listV := app.NewListVarietiesHandler(memory.NewVarietyRepo())
-	return web.NewServer(drinkers, wines, companions, logH, listH, listV), d, w, companions
+	createD := app.NewCreateDrinkerHandler(drinkers)
+	renameD := app.NewRenameDrinkerHandler(drinkers)
+	return web.NewServer(drinkers, wines, companions, logH, listH, listV, createD, renameD), d, w, companions
 }
 
 func TestSwitch_PostSetsCookieAndRedirectsToTastings(t *testing.T) {

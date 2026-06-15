@@ -37,7 +37,7 @@ func NewServer(d domain.DrinkerRepository, w domain.WineRepository, logH *app.Lo
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /tastings", s.handleTastings)
 	s.mux.HandleFunc("POST /tastings", s.handleLogTasting)
-	s.mux.HandleFunc("GET /switch", s.handleSwitch)
+	s.mux.HandleFunc("POST /switch", s.handleSwitch)
 	return s
 }
 
@@ -121,7 +121,7 @@ func (s *Server) handleLogTasting(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
-	if id := r.URL.Query().Get("drinker"); id != "" {
+	if id := r.FormValue("drinker"); id != "" {
 		http.SetCookie(w, &http.Cookie{Name: drinkerCookie, Value: id, Path: "/", HttpOnly: true})
 	}
 	http.Redirect(w, r, "/tastings", http.StatusSeeOther)

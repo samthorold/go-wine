@@ -29,7 +29,7 @@ templ Layout(title string, drinkers []DrinkerOption) {
 			<main class="container">
 				<nav>
 					<ul><li><strong>🍷 go-wine</strong></li></ul>
-					<ul><li>@drinkerSwitcher(drinkers)</li></ul>
+					<ul><li>@DrinkerSwitcher(DrinkerSwitcherModel{Drinkers: drinkers})</li></ul>
 				</nav>
 				{ children... }
 			</main>
@@ -37,16 +37,38 @@ templ Layout(title string, drinkers []DrinkerOption) {
 	</html>
 }
 
-templ drinkerSwitcher(drinkers []DrinkerOption) {
-	<form method="post" action="/switch">
-		<select name="drinker" aria-label="Drinker" onchange="this.form.submit()">
-			for _, d := range drinkers {
-				if d.Active {
-					<option value={ d.ID } selected>{ d.Name }</option>
-				} else {
-					<option value={ d.ID }>{ d.Name }</option>
+// DrinkerSwitcher renders the #drinker-switcher region: pick the active Drinker,
+// add a new one, or rename the active one. It owns its id so the 422
+// re-render (a failed add/rename) and first paint render from one component and
+// cannot drift.
+templ DrinkerSwitcher(model DrinkerSwitcherModel) {
+	<div id="drinker-switcher">
+		<form method="post" action="/switch">
+			<select name="drinker" aria-label="Drinker" onchange="this.form.submit()">
+				for _, d := range model.Drinkers {
+					if d.Active {
+						<option value={ d.ID } selected>{ d.Name }</option>
+					} else {
+						<option value={ d.ID }>{ d.Name }</option>
+					}
 				}
+			</select>
+		</form>
+		if msg := model.err(""); msg != "" {
+			<p class="error banner" role="alert">{ msg }</p>
+		}
+		<form hx-post="/drinkers" hx-target="#drinker-switcher" hx-swap="outerHTML">
+			<input type="text" name="name" placeholder="Add a drinker" aria-label="New drinker name" value={ model.Name } required/>
+			if msg := model.err("name"); msg != "" {
+				<span class="error">{ msg }</span>
 			}
-		</select>
-	</form>
+			<button type="submit">Add</button>
+		</form>
+		if id := model.activeID(); id != "" {
+			<form hx-put={ "/drinkers/" + id } hx-target="#drinker-switcher" hx-swap="outerHTML">
+				<input type="text" name="name" aria-label="Rename drinker" value={ model.activeName() } required/>
+				<button type="submit">Rename</button>
+			</form>
+		}
+	</div>
 }

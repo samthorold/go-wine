@@ -20,10 +20,11 @@ func NewDrinkerRepo() *DrinkerRepo {
 	return &DrinkerRepo{data: make(map[domain.ID]domain.Drinker)}
 }
 
-func (r *DrinkerRepo) Save(d domain.Drinker) {
+func (r *DrinkerRepo) Save(_ context.Context, d domain.Drinker) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.data[d.ID] = d
+	return nil
 }
 
 func (r *DrinkerRepo) Get(_ context.Context, id domain.ID) (domain.Drinker, error) {

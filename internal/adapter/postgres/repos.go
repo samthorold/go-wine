@@ -17,6 +17,17 @@ type DrinkerRepo struct{ pool *pgxpool.Pool }
 
 func NewDrinkerRepo(p *pgxpool.Pool) *DrinkerRepo { return &DrinkerRepo{pool: p} }
 
+// Save upserts a Drinker keyed by ID: a fresh Drinker inserts; a rename updates
+// the existing row's name in place.
+func (r *DrinkerRepo) Save(ctx context.Context, d domain.Drinker) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO drinkers (id, name) VALUES ($1, $2)
+		 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`,
+		d.ID.String(), d.Name,
+	)
+	return err
+}
+
 func (r *DrinkerRepo) Get(ctx context.Context, id domain.ID) (domain.Drinker, error) {
 	var idStr, name string
 	err := r.pool.QueryRow(ctx, `SELECT id, name FROM drinkers WHERE id=$1`, id.String()).Scan(&idStr, &name)

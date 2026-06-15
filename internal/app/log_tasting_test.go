@@ -21,7 +21,9 @@ func fixture(t *testing.T) (*memory.DrinkerRepo, *memory.WineRepo, *memory.Tasti
 	if err != nil {
 		t.Fatalf("new drinker: %v", err)
 	}
-	drinkers.Save(d)
+	if err := drinkers.Save(context.Background(), d); err != nil {
+		t.Fatalf("save drinker: %v", err)
+	}
 
 	w, err := domain.NewWine("Penfolds", "Bin 28 Shiraz", "Shiraz")
 	if err != nil {

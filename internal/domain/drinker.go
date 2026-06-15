@@ -16,3 +16,14 @@ func NewDrinker(name string) (Drinker, error) {
 	}
 	return Drinker{ID: NewID(), Name: name}, nil
 }
+
+// Rename changes a Drinker's name, keeping its identity. The non-empty-name
+// invariant lives here, mirroring NewDrinker, so a rename can never blank a
+// Drinker out from under the Tastings it owns.
+func (d *Drinker) Rename(name string) error {
+	if name == "" {
+		return ErrValidation
+	}
+	d.Name = name
+	return nil
+}

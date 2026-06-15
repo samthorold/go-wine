@@ -9,6 +9,38 @@ type DrinkerOption struct {
 	Active bool
 }
 
+// DrinkerSwitcherModel is the view model for the switcher region: the Drinkers
+// to choose between (one Active), the name entered in the add form (preserved
+// across a failed submit), and a field-to-message error map (empty on first
+// paint; the empty-string key carries a form-level banner).
+type DrinkerSwitcherModel struct {
+	Drinkers []DrinkerOption
+	Name     string
+	Errors   map[string]string
+}
+
+func (m DrinkerSwitcherModel) err(field string) string { return m.Errors[field] }
+
+// activeName is the name of the active Drinker, used to prefill the rename box.
+func (m DrinkerSwitcherModel) activeName() string {
+	for _, d := range m.Drinkers {
+		if d.Active {
+			return d.Name
+		}
+	}
+	return ""
+}
+
+// activeID is the ID of the active Drinker, the target of the rename form.
+func (m DrinkerSwitcherModel) activeID() string {
+	for _, d := range m.Drinkers {
+		if d.Active {
+			return d.ID
+		}
+	}
+	return ""
+}
+
 // WineOption is the log form's view of a Wine.
 type WineOption struct {
 	ID    string

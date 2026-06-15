@@ -5,8 +5,10 @@ import "context"
 // Repository ports. One per aggregate root, not per table. Implemented by the
 // in-memory adapter (fast unit tests) and the Postgres adapter (integration).
 
-// DrinkerRepository owns Drinkers.
+// DrinkerRepository owns Drinkers. Save upserts: it inserts a new Drinker or
+// updates an existing one (a rename), keyed by ID.
 type DrinkerRepository interface {
+	Save(ctx context.Context, d Drinker) error
 	Get(ctx context.Context, id ID) (Drinker, error)
 	List(ctx context.Context) ([]Drinker, error)
 }

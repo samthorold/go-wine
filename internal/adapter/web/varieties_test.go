@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,14 +21,16 @@ func TestVarieties_GetListsSeededVarieties(t *testing.T) {
 	companions := memory.NewCompanionRepo()
 
 	d, _ := domain.NewDrinker("Sam")
-	drinkers.Save(d)
+	_ = drinkers.Save(context.Background(), d)
 	v, _ := domain.NewVariety("Shiraz")
 	varieties.Save(v)
 
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
 	listH := app.NewListTastingsHandler(wines, tastings, companions)
 	listV := app.NewListVarietiesHandler(varieties)
-	srv := web.NewServer(drinkers, wines, companions, logH, listH, listV)
+	createD := app.NewCreateDrinkerHandler(drinkers)
+	renameD := app.NewRenameDrinkerHandler(drinkers)
+	srv := web.NewServer(drinkers, wines, companions, logH, listH, listV, createD, renameD)
 
 	req := httptest.NewRequest(http.MethodGet, "/varieties", nil)
 	rec := httptest.NewRecorder()

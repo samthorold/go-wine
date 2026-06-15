@@ -25,17 +25,21 @@ type Server struct {
 	logTasting    *app.LogTastingHandler
 	listTastings  *app.ListTastingsHandler
 	listVarieties *app.ListVarietiesHandler
+	createDrinker *app.CreateDrinkerHandler
+	renameDrinker *app.RenameDrinkerHandler
 	drinkers      domain.DrinkerRepository
 	wines         domain.WineRepository
 	companions    domain.CompanionRepository
 }
 
-func NewServer(d domain.DrinkerRepository, w domain.WineRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler) *Server {
+func NewServer(d domain.DrinkerRepository, w domain.WineRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler) *Server {
 	s := &Server{
 		mux:           http.NewServeMux(),
 		logTasting:    logH,
 		listTastings:  listH,
 		listVarieties: listV,
+		createDrinker: createD,
+		renameDrinker: renameD,
 		drinkers:      d,
 		wines:         w,
 		companions:    c,
@@ -45,6 +49,8 @@ func NewServer(d domain.DrinkerRepository, w domain.WineRepository, c domain.Com
 	s.mux.HandleFunc("POST /tastings", s.handleLogTasting)
 	s.mux.HandleFunc("GET /varieties", s.handleVarieties)
 	s.mux.HandleFunc("POST /switch", s.handleSwitch)
+	s.mux.HandleFunc("POST /drinkers", s.handleCreateDrinker)
+	s.mux.HandleFunc("PUT /drinkers/{id}", s.handleRenameDrinker)
 	return s
 }
 
@@ -240,6 +246,92 @@ func logTastingErrors(err error) map[string]string {
 	default:
 		return map[string]string{"": "could not log that tasting, please try again"}
 	}
+}
+
+// handleCreateDrinker adds a Drinker and switches to them. Success is a
+// navigational mutation: 303 to /tastings (and HX-Redirect so a boosted/htmx
+// submit reloads the whole page, surfacing the new active Drinker everywhere).
+// An empty name fails in the domain and re-renders the switcher region (422)
+// with the entered value and an inline error.
+func (s *Server) handleCreateDrinker(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+
+	id, err := s.createDrinker.Handle(ctx, app.CreateDrinkerCommand{Name: name})
+	if err != nil {
+		active, _ := s.activeDrinker(r)
+		s.renderSwitcher422(w, r, active.ID, name, err)
+		return
+	}
+
+	// The new Drinker becomes the active one via the switcher cookie.
+	http.SetCookie(w, &http.Cookie{Name: drinkerCookie, Value: id.String(), Path: "/", HttpOnly: true})
+	s.redirectToTastings(w, r)
+}
+
+// handleRenameDrinker renames an existing Drinker. Success redirects to
+// /tastings so the renamed Drinker's new name shows in the switcher; an empty
+// name re-renders the switcher region (422) with an inline error.
+func (s *Server) handleRenameDrinker(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	id := domain.ID(r.PathValue("id"))
+	name := strings.TrimSpace(r.FormValue("name"))
+
+	err := s.renameDrinker.Handle(ctx, app.RenameDrinkerCommand{ID: id, Name: name})
+	switch {
+	case err == nil:
+		s.redirectToTastings(w, r)
+	case errors.Is(err, domain.ErrValidation):
+		s.renderSwitcher422(w, r, id, name, err)
+	case errors.Is(err, domain.ErrNotFound):
+		http.NotFound(w, r)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// redirectToTastings lands a navigational mutation on the Tastings page: a 303
+// for a plain/boosted submit, plus HX-Redirect so an explicit-htmx submit
+// (the add/rename forms target #drinker-switcher) navigates the whole page
+// rather than swapping the redirect target into that region.
+func (s *Server) redirectToTastings(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("HX-Redirect", "/tastings")
+	http.Redirect(w, r, "/tastings", http.StatusSeeOther)
+}
+
+// renderSwitcher422 re-renders the switcher region with the entered name and an
+// inline domain error, on a 422 that htmx swaps into #drinker-switcher.
+func (s *Server) renderSwitcher422(w http.ResponseWriter, r *http.Request, activeID domain.ID, name string, err error) {
+	ctx := r.Context()
+	dopts, derr := s.drinkerOptions(ctx, activeID)
+	if derr != nil {
+		http.Error(w, derr.Error(), http.StatusInternalServerError)
+		return
+	}
+	model := views.DrinkerSwitcherModel{
+		Drinkers: dopts,
+		Name:     name,
+		Errors:   map[string]string{"name": drinkerNameError(err)},
+	}
+	w.WriteHeader(http.StatusUnprocessableEntity)
+	_ = views.DrinkerSwitcher(model).Render(ctx, w)
+}
+
+// drinkerNameError maps a create/rename failure to a field message. A blank
+// name is the only attributable case; anything else surfaces generically.
+func drinkerNameError(err error) string {
+	if errors.Is(err, domain.ErrValidation) {
+		return "please enter a name"
+	}
+	return "could not save that drinker, please try again"
 }
 
 func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {

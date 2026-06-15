@@ -36,7 +36,8 @@ func newTestServer(t *testing.T) (*web.Server, domain.Drinker, domain.Wine) {
 
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
 	listH := app.NewListTastingsHandler(wines, tastings)
-	return web.NewServer(drinkers, wines, logH, listH), d, w
+	listV := app.NewListVarietiesHandler(memory.NewVarietyRepo())
+	return web.NewServer(drinkers, wines, logH, listH, listV), d, w
 }
 
 func TestSwitch_PostSetsCookieAndRedirectsToTastings(t *testing.T) {

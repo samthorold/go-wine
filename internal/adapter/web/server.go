@@ -20,24 +20,27 @@ const drinkerCookie = "drinker"
 
 // Server holds the routes and the handlers/repos they need.
 type Server struct {
-	mux          *http.ServeMux
-	logTasting   *app.LogTastingHandler
-	listTastings *app.ListTastingsHandler
-	drinkers     domain.DrinkerRepository
-	wines        domain.WineRepository
+	mux           *http.ServeMux
+	logTasting    *app.LogTastingHandler
+	listTastings  *app.ListTastingsHandler
+	listVarieties *app.ListVarietiesHandler
+	drinkers      domain.DrinkerRepository
+	wines         domain.WineRepository
 }
 
-func NewServer(d domain.DrinkerRepository, w domain.WineRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler) *Server {
+func NewServer(d domain.DrinkerRepository, w domain.WineRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler) *Server {
 	s := &Server{
-		mux:          http.NewServeMux(),
-		logTasting:   logH,
-		listTastings: listH,
-		drinkers:     d,
-		wines:        w,
+		mux:           http.NewServeMux(),
+		logTasting:    logH,
+		listTastings:  listH,
+		listVarieties: listV,
+		drinkers:      d,
+		wines:         w,
 	}
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /tastings", s.handleTastings)
 	s.mux.HandleFunc("POST /tastings", s.handleLogTasting)
+	s.mux.HandleFunc("GET /varieties", s.handleVarieties)
 	s.mux.HandleFunc("POST /switch", s.handleSwitch)
 	return s
 }
@@ -71,6 +74,26 @@ func (s *Server) handleTastings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = views.TastingsPage(dopts, views.LogFormModel{Wines: wopts}, tastings).Render(ctx, w)
+}
+
+func (s *Server) handleVarieties(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	active, err := s.activeDrinker(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dopts, err := s.drinkerOptions(ctx, active.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	varieties, err := s.listVarieties.Handle(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.VarietiesPage(dopts, varieties).Render(ctx, w)
 }
 
 func (s *Server) handleLogTasting(w http.ResponseWriter, r *http.Request) {

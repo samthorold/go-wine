@@ -82,6 +82,42 @@ func (r *WineRepo) List(_ context.Context) ([]domain.Wine, error) {
 	return out, nil
 }
 
+// VarietyRepo is an in-memory domain.VarietyRepository.
+type VarietyRepo struct {
+	mu   sync.RWMutex
+	data map[domain.ID]domain.Variety
+}
+
+func NewVarietyRepo() *VarietyRepo {
+	return &VarietyRepo{data: make(map[domain.ID]domain.Variety)}
+}
+
+func (r *VarietyRepo) Save(v domain.Variety) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.data[v.ID] = v
+}
+
+func (r *VarietyRepo) Get(_ context.Context, id domain.ID) (domain.Variety, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	v, ok := r.data[id]
+	if !ok {
+		return domain.Variety{}, domain.ErrNotFound
+	}
+	return v, nil
+}
+
+func (r *VarietyRepo) List(_ context.Context) ([]domain.Variety, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]domain.Variety, 0, len(r.data))
+	for _, v := range r.data {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
 // TastingRepo is an in-memory domain.TastingRepository.
 type TastingRepo struct {
 	mu   sync.RWMutex

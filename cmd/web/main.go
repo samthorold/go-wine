@@ -21,9 +21,10 @@ func main() {
 	ctx := context.Background()
 
 	var (
-		drinkers domain.DrinkerRepository
-		wines    domain.WineRepository
-		tastings domain.TastingRepository
+		drinkers  domain.DrinkerRepository
+		wines     domain.WineRepository
+		tastings  domain.TastingRepository
+		varieties domain.VarietyRepository
 	)
 
 	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
@@ -41,17 +42,19 @@ func main() {
 		drinkers = postgres.NewDrinkerRepo(pool)
 		wines = postgres.NewWineRepo(pool)
 		tastings = postgres.NewTastingRepo(pool)
+		varieties = postgres.NewVarietyRepo(pool)
 		log.Println("store: postgres")
 	} else {
-		md, mw, mt := memory.NewDrinkerRepo(), memory.NewWineRepo(), memory.NewTastingRepo()
-		seedMemory(md, mw)
-		drinkers, wines, tastings = md, mw, mt
+		md, mw, mt, mv := memory.NewDrinkerRepo(), memory.NewWineRepo(), memory.NewTastingRepo(), memory.NewVarietyRepo()
+		seedMemory(md, mw, mv)
+		drinkers, wines, tastings, varieties = md, mw, mt, mv
 		log.Println("store: in-memory (set DATABASE_URL for Postgres)")
 	}
 
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
 	listH := app.NewListTastingsHandler(wines, tastings)
-	srv := web.NewServer(drinkers, wines, logH, listH)
+	listV := app.NewListVarietiesHandler(varieties)
+	srv := web.NewServer(drinkers, wines, logH, listH, listV)
 
 	addr := ":" + envOr("PORT", "8080")
 	log.Printf("go-wine listening on %s", addr)
@@ -60,7 +63,7 @@ func main() {
 	}
 }
 
-func seedMemory(drinkers *memory.DrinkerRepo, wines *memory.WineRepo) {
+func seedMemory(drinkers *memory.DrinkerRepo, wines *memory.WineRepo, varieties *memory.VarietyRepo) {
 	for _, name := range []string{"Sam", "Partner"} {
 		if d, err := domain.NewDrinker(name); err == nil {
 			drinkers.Save(d)
@@ -74,6 +77,17 @@ func seedMemory(drinkers *memory.DrinkerRepo, wines *memory.WineRepo) {
 	for _, w := range seed {
 		if wine, err := domain.NewWine(w.producer, w.name, w.style); err == nil {
 			wines.Save(wine)
+		}
+	}
+	// A coherent starter set of common grapes, mirroring the 0002 migration seed
+	// so the /varieties page is populated on the in-memory store too.
+	for _, name := range []string{
+		"Cabernet Sauvignon", "Merlot", "Pinot Noir", "Syrah", "Grenache",
+		"Mourvèdre", "Tempranillo", "Sangiovese", "Nebbiolo", "Malbec",
+		"Chardonnay", "Sauvignon Blanc", "Riesling", "Pinot Grigio", "Chenin Blanc",
+	} {
+		if v, err := domain.NewVariety(name); err == nil {
+			varieties.Save(v)
 		}
 	}
 }

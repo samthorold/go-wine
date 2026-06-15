@@ -23,6 +23,21 @@ func TestLayoutBoostsNavigation(t *testing.T) {
 	}
 }
 
+func TestDrinkerSwitcherPostsToSwitch(t *testing.T) {
+	var sb strings.Builder
+	opts := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
+	if err := Layout("Tastings", opts).Render(context.Background(), &sb); err != nil {
+		t.Fatalf("rendering Layout: %v", err)
+	}
+	html := sb.String()
+	if !strings.Contains(html, `method="post"`) {
+		t.Errorf("switcher form should POST (no safe-method mutation); got:\n%s", html)
+	}
+	if strings.Contains(html, `method="get"`) {
+		t.Errorf("switcher form should not use method=get; got:\n%s", html)
+	}
+}
+
 func TestLayoutSwaps422Responses(t *testing.T) {
 	html := renderLayout(t)
 	if !strings.Contains(html, "htmx.config.responseHandling") {

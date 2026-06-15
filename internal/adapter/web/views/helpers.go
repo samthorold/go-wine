@@ -15,6 +15,21 @@ type WineOption struct {
 	Label string
 }
 
+// LogFormModel is the view model the log-a-Tasting form renders: the Wine
+// options to choose from, the values the Drinker entered (preserved across a
+// failed submit), and a field-to-message error map. Errors is empty on first
+// paint. The empty-string key carries a form-level (non-field) banner.
+type LogFormModel struct {
+	Wines   []WineOption
+	WineID  string
+	Vintage string
+	Rating  string
+	Note    string
+	Errors  map[string]string
+}
+
+func (m LogFormModel) err(field string) string { return m.Errors[field] }
+
 func ratingStars(r int) string {
 	if r < 0 {
 		r = 0

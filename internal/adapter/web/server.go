@@ -5,6 +5,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -69,7 +70,7 @@ func (s *Server) handleTastings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = views.TastingsPage(dopts, wopts, tastings).Render(ctx, w)
+	_ = views.TastingsPage(dopts, views.LogFormModel{Wines: wopts}, tastings).Render(ctx, w)
 }
 
 func (s *Server) handleLogTasting(w http.ResponseWriter, r *http.Request) {
@@ -95,29 +96,59 @@ func (s *Server) handleLogTasting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	if _, err := s.logTasting.Handle(ctx, app.LogTastingCommand{
+	_, err = s.logTasting.Handle(ctx, app.LogTastingCommand{
 		DrinkerID: active.ID,
 		WineID:    wineID,
 		Vintage:   vintage,
 		Rating:    rating,
 		Note:      note,
 		DrunkOn:   now,
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	})
+	if err != nil {
+		// Validation failure: re-render the form (422, which htmx swaps) with the
+		// entered values preserved and the error against the offending field. The
+		// tastings list is untouched, so no OOB fragment.
+		model := s.logFormModel(ctx, r)
+		model.Errors = logTastingErrors(err)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = views.LogForm(model).Render(ctx, w)
 		return
 	}
 
-	label := "(unknown wine)"
-	if wine, err := s.wines.Get(ctx, wineID); err == nil {
-		label = wine.Label()
+	// Success: the primary target (#log-form) swaps to a fresh empty form, and
+	// the #tastings list updates out-of-band in the same response.
+	wopts, _ := s.wineOptions(ctx)
+	tastings, _ := s.listTastings.Handle(ctx, active.ID)
+	_ = views.LogForm(views.LogFormModel{Wines: wopts}).Render(ctx, w)
+	_ = views.TastingListOOB(tastings).Render(ctx, w)
+}
+
+// logFormModel rebuilds the form's view model from the submitted request,
+// preserving the entered values so a failed submit re-renders what the Drinker
+// typed. Errors are filled in by the caller.
+func (s *Server) logFormModel(ctx context.Context, r *http.Request) views.LogFormModel {
+	wopts, _ := s.wineOptions(ctx)
+	return views.LogFormModel{
+		Wines:   wopts,
+		WineID:  r.FormValue("wine_id"),
+		Vintage: r.FormValue("vintage"),
+		Rating:  r.FormValue("rating"),
+		Note:    r.FormValue("note"),
 	}
-	_ = views.TastingRow(app.TastingView{
-		WineLabel: label,
-		Vintage:   vintage,
-		Rating:    rating,
-		Note:      note,
-		DrunkOn:   now,
-	}).Render(ctx, w)
+}
+
+// logTastingErrors maps a LogTasting failure to a field->message error map. A
+// rating outside 1..5 is attributable to the rating field; an unknown Wine to
+// the wine_id field; anything else surfaces as a form-level banner.
+func logTastingErrors(err error) map[string]string {
+	switch {
+	case errors.Is(err, domain.ErrInvalidRating):
+		return map[string]string{"rating": err.Error()}
+	case errors.Is(err, domain.ErrNotFound):
+		return map[string]string{"wine_id": "please choose a known wine"}
+	default:
+		return map[string]string{"": "could not log that tasting, please try again"}
+	}
 }
 
 func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {

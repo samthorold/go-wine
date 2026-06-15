@@ -6,44 +6,77 @@ import (
 	"go-wine/internal/app"
 )
 
-templ TastingsPage(drinkers []DrinkerOption, wines []WineOption, tastings []app.TastingView) {
+templ TastingsPage(drinkers []DrinkerOption, model LogFormModel, tastings []app.TastingView) {
 	@Layout("Tastings", drinkers) {
 		<h2>Log a tasting</h2>
-		@LogForm(wines)
+		@LogForm(model)
 		<h2>Your tastings</h2>
-		<div id="tastings">
-			for _, t := range tastings {
-				@TastingRow(t)
-			}
-		</div>
+		@TastingList(tastings)
 	}
 }
 
-templ LogForm(wines []WineOption) {
-	<form hx-post="/tastings" hx-target="#tastings" hx-swap="afterbegin">
+// TastingList renders the #tastings region for first paint.
+templ TastingList(tastings []app.TastingView) {
+	@tastingList(tastings, false)
+}
+
+// TastingListOOB renders the same #tastings region marked for an
+// out-of-band swap, used in the POST /tastings success response.
+templ TastingListOOB(tastings []app.TastingView) {
+	@tastingList(tastings, true)
+}
+
+// tastingList is the single source of the #tastings markup, so first-paint
+// and OOB re-render cannot drift.
+templ tastingList(tastings []app.TastingView, oob bool) {
+	<div id="tastings" if oob { hx-swap-oob="true" }>
+		if len(tastings) == 0 {
+			<p class="empty">No tastings yet — log your first above.</p>
+		} else {
+			for _, t := range tastings {
+				@TastingRow(t)
+			}
+		}
+	</div>
+}
+
+templ LogForm(model LogFormModel) {
+	<form id="log-form" hx-post="/tastings" hx-target="#log-form" hx-swap="outerHTML">
+		if msg := model.err(""); msg != "" {
+			<p class="error banner" role="alert">{ msg }</p>
+		}
 		<label>
 			Wine
 			<select name="wine_id" required>
-				for _, w := range wines {
-					<option value={ w.ID }>{ w.Label }</option>
+				for _, w := range model.Wines {
+					<option value={ w.ID } selected?={ w.ID == model.WineID }>{ w.Label }</option>
 				}
 			</select>
+			if msg := model.err("wine_id"); msg != "" {
+				<span class="error">{ msg }</span>
+			}
 		</label>
 		<label>
 			Vintage
-			<input type="number" name="vintage" placeholder="2019" min="1900" max="2100"/>
+			<input type="number" name="vintage" placeholder="2019" min="1900" max="2100" value={ model.Vintage }/>
+			if msg := model.err("vintage"); msg != "" {
+				<span class="error">{ msg }</span>
+			}
 		</label>
 		<label>
 			Rating
 			<select name="rating" required>
 				for r := 5; r >= 1; r-- {
-					<option value={ strconv.Itoa(r) }>{ strconv.Itoa(r) }</option>
+					<option value={ strconv.Itoa(r) } selected?={ strconv.Itoa(r) == model.Rating }>{ strconv.Itoa(r) }</option>
 				}
 			</select>
+			if msg := model.err("rating"); msg != "" {
+				<span class="error">{ msg }</span>
+			}
 		</label>
 		<label>
 			Note
-			<textarea name="note" rows="2" placeholder="cold night, lamb stew, cosy..."></textarea>
+			<textarea name="note" rows="2" placeholder="cold night, lamb stew, cosy...">{ model.Note }</textarea>
 		</label>
 		<button type="submit">Log tasting</button>
 	</form>

@@ -20,7 +20,7 @@ templ TastingsPage(drinkers []DrinkerOption, wines []WineOption, tastings []app.
 }
 
 templ LogForm(wines []WineOption) {
-	<form class="log" hx-post="/tastings" hx-target="#tastings" hx-swap="afterbegin">
+	<form hx-post="/tastings" hx-target="#tastings" hx-swap="afterbegin">
 		<label>
 			Wine
 			<select name="wine_id" required>
@@ -50,7 +50,7 @@ templ LogForm(wines []WineOption) {
 }
 
 templ TastingRow(t app.TastingView) {
-	<div class="tasting">
+	<article>
 		<strong>{ t.WineLabel }</strong>
 		if t.Vintage != nil {
 			<span>({ strconv.Itoa(*t.Vintage) })</span>
@@ -60,5 +60,5 @@ templ TastingRow(t app.TastingView) {
 		if t.Note != "" {
 			<p>{ t.Note }</p>
 		}
-	</div>
+	</article>
 }

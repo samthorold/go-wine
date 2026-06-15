@@ -19,6 +19,9 @@ implementation-agnostic; the code encodes them. Language is defined once in
   (server owns all markup and state, no client data API), required rather than
   JS-optional, a boosted multi-page app carved along swap boundaries, with
   failed commands re-rendering their form.
+- [look-and-feel.md](./look-and-feel.md) — why styling is minimal, classless
+  (Pico.css) and dark by default with no toggle, custom CSS rationed to domain
+  accents, and no client-side UI components.
 
 ## The v1 line
 

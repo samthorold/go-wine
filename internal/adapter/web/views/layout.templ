@@ -2,47 +2,40 @@ package views
 
 templ Layout(title string, drinkers []DrinkerOption) {
 	<!DOCTYPE html>
-	<html lang="en">
+	<html lang="en" data-theme="dark">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title }</title>
+			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"/>
 			<script src="https://unpkg.com/htmx.org@2.0.3"></script>
 			<style>
-				body { font-family: system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
-				header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-				h1 { font-size: 1.4rem; margin: 0; }
-				.tasting { border-bottom: 1px solid #eee; padding: .6rem 0; }
-				.rating { color: #b00; letter-spacing: 1px; }
-				form.log { display: grid; gap: .6rem; margin: 1rem 0 2rem; }
-				form.log label { display: grid; gap: .2rem; font-size: .85rem; color: #555; }
-				form.log input, form.log select, form.log textarea { padding: .4rem; font: inherit; }
-				button { padding: .5rem 1rem; font: inherit; cursor: pointer; }
+				/* Domain accents only — everything else is Pico's classless defaults. */
+				.rating { color: #d9534f; letter-spacing: 2px; }
 			</style>
 		</head>
 		<body>
-			<header>
-				<h1>🍷 go-wine</h1>
-				@drinkerSwitcher(drinkers)
-			</header>
-			{ children... }
+			<main class="container">
+				<nav>
+					<ul><li><strong>🍷 go-wine</strong></li></ul>
+					<ul><li>@drinkerSwitcher(drinkers)</li></ul>
+				</nav>
+				{ children... }
+			</main>
 		</body>
 	</html>
 }
 
 templ drinkerSwitcher(drinkers []DrinkerOption) {
 	<form method="get" action="/switch">
-		<label>
-			Drinker:
-			<select name="drinker" onchange="this.form.submit()">
-				for _, d := range drinkers {
-					if d.Active {
-						<option value={ d.ID } selected>{ d.Name }</option>
-					} else {
-						<option value={ d.ID }>{ d.Name }</option>
-					}
+		<select name="drinker" aria-label="Drinker" onchange="this.form.submit()">
+			for _, d := range drinkers {
+				if d.Active {
+					<option value={ d.ID } selected>{ d.Name }</option>
+				} else {
+					<option value={ d.ID }>{ d.Name }</option>
 				}
-			</select>
-		</label>
+			}
+		</select>
 	</form>
 }

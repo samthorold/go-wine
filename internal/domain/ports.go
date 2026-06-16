@@ -13,10 +13,14 @@ type DrinkerRepository interface {
 	List(ctx context.Context) ([]Drinker, error)
 }
 
-// WineRepository owns Wines (and, in later slices, their Composition).
+// WineRepository owns the Wine aggregate — the Wine and its Composition,
+// persisted together. SetComposition replaces the Wine's Composition (the
+// caller has already validated it through the domain); Get and List return the
+// Wine with its Composition attached.
 type WineRepository interface {
 	Get(ctx context.Context, id ID) (Wine, error)
 	List(ctx context.Context) ([]Wine, error)
+	SetComposition(ctx context.Context, wineID ID, c Composition) error
 }
 
 // VarietyRepository owns Varieties — global reference data, not scoped to a

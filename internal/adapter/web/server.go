@@ -21,33 +21,44 @@ const drinkerCookie = "drinker"
 
 // Server holds the routes and the handlers/repos they need.
 type Server struct {
-	mux           *http.ServeMux
-	logTasting    *app.LogTastingHandler
-	listTastings  *app.ListTastingsHandler
-	listVarieties *app.ListVarietiesHandler
-	createDrinker *app.CreateDrinkerHandler
-	renameDrinker *app.RenameDrinkerHandler
-	drinkers      domain.DrinkerRepository
-	wines         domain.WineRepository
-	companions    domain.CompanionRepository
+	mux             *http.ServeMux
+	logTasting      *app.LogTastingHandler
+	listTastings    *app.ListTastingsHandler
+	listVarieties   *app.ListVarietiesHandler
+	listWines       *app.ListWinesHandler
+	getWine         *app.GetWineHandler
+	editComposition *app.EditCompositionHandler
+	createDrinker   *app.CreateDrinkerHandler
+	renameDrinker   *app.RenameDrinkerHandler
+	drinkers        domain.DrinkerRepository
+	wines           domain.WineRepository
+	varieties       domain.VarietyRepository
+	companions      domain.CompanionRepository
 }
 
-func NewServer(d domain.DrinkerRepository, w domain.WineRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler) *Server {
+func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.VarietyRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, listW *app.ListWinesHandler, getW *app.GetWineHandler, editC *app.EditCompositionHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler) *Server {
 	s := &Server{
-		mux:           http.NewServeMux(),
-		logTasting:    logH,
-		listTastings:  listH,
-		listVarieties: listV,
-		createDrinker: createD,
-		renameDrinker: renameD,
-		drinkers:      d,
-		wines:         w,
-		companions:    c,
+		mux:             http.NewServeMux(),
+		logTasting:      logH,
+		listTastings:    listH,
+		listVarieties:   listV,
+		listWines:       listW,
+		getWine:         getW,
+		editComposition: editC,
+		createDrinker:   createD,
+		renameDrinker:   renameD,
+		drinkers:        d,
+		wines:           w,
+		varieties:       v,
+		companions:      c,
 	}
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /tastings", s.handleTastings)
 	s.mux.HandleFunc("POST /tastings", s.handleLogTasting)
 	s.mux.HandleFunc("GET /varieties", s.handleVarieties)
+	s.mux.HandleFunc("GET /wines", s.handleWines)
+	s.mux.HandleFunc("GET /wines/{id}", s.handleWine)
+	s.mux.HandleFunc("PUT /wines/{id}", s.handleEditComposition)
 	s.mux.HandleFunc("POST /switch", s.handleSwitch)
 	s.mux.HandleFunc("POST /drinkers", s.handleCreateDrinker)
 	s.mux.HandleFunc("PUT /drinkers/{id}", s.handleRenameDrinker)
@@ -108,6 +119,184 @@ func (s *Server) handleVarieties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = views.VarietiesPage(dopts, varieties).Render(ctx, w)
+}
+
+func (s *Server) handleWines(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	active, err := s.activeDrinker(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dopts, err := s.drinkerOptions(ctx, active.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	wines, err := s.listWines.Handle(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.WinesPage(dopts, wines).Render(ctx, w)
+}
+
+func (s *Server) handleWine(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	active, err := s.activeDrinker(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dopts, err := s.drinkerOptions(ctx, active.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	id := domain.ID(r.PathValue("id"))
+	wine, err := s.getWine.Handle(ctx, id)
+	if errors.Is(err, domain.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	vopts, err := s.varietyOptions(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.WineDetailPage(dopts, wine, s.compositionForm(wine, vopts)).Render(ctx, w)
+}
+
+// handleEditComposition sets a Wine's Composition. Success swaps a fresh empty
+// form into #composition-form plus the updated #composition view out-of-band; a
+// validation failure re-renders the form (422) with the entered rows preserved
+// and an inline error. An unknown Wine is a 404.
+func (s *Server) handleEditComposition(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	id := domain.ID(r.PathValue("id"))
+
+	parts := parseCompositionParts(r)
+	err := s.editComposition.Handle(ctx, app.EditCompositionCommand{WineID: id, Parts: parts})
+	if err == nil {
+		// Success: re-render a fresh form (primary target) and update the
+		// #composition view out-of-band.
+		wine, _ := s.getWine.Handle(ctx, id)
+		vopts, _ := s.varietyOptions(ctx)
+		_ = views.CompositionForm(s.compositionForm(wine, vopts)).Render(ctx, w)
+		_ = views.CompositionViewOOB(wine).Render(ctx, w)
+		return
+	}
+
+	// An unknown Wine (the resource itself is missing) is a 404; everything
+	// else — an empty/sum-off Composition, or an unknown Variety picked in the
+	// form — is a validation failure re-rendered against the form (422).
+	if errors.Is(err, domain.ErrNotFound) && !wineExists(ctx, s, id) {
+		http.NotFound(w, r)
+		return
+	}
+	if errors.Is(err, domain.ErrInvalidComposition) || errors.Is(err, domain.ErrNotFound) {
+		vopts, _ := s.varietyOptions(ctx)
+		model := s.compositionFormFromRequest(id, r, vopts)
+		model.Errors = map[string]string{"": compositionError(err)}
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = views.CompositionForm(model).Render(ctx, w)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+// wineExists reports whether the Wine itself exists, used to distinguish an
+// unknown-Variety ErrNotFound (a 422 against the form) from an unknown-Wine
+// ErrNotFound (a 404).
+func wineExists(ctx context.Context, s *Server, id domain.ID) bool {
+	_, err := s.wines.Get(ctx, id)
+	return err == nil
+}
+
+// parseCompositionParts pairs up the parallel variety_id / proportion form
+// fields into command inputs, dropping rows where no Variety was chosen. Blank
+// or non-numeric proportions become 0, which the domain rejects.
+func parseCompositionParts(r *http.Request) []app.CompositionPartInput {
+	vids := r.Form["variety_id"]
+	props := r.Form["proportion"]
+	var out []app.CompositionPartInput
+	for i, vid := range vids {
+		if vid == "" {
+			continue
+		}
+		prop := 0
+		if i < len(props) {
+			prop, _ = strconv.Atoi(props[i])
+		}
+		out = append(out, app.CompositionPartInput{VarietyID: domain.ID(vid), Proportion: prop})
+	}
+	return out
+}
+
+// compositionForm builds the edit form for a Wine, prefilling one row per
+// existing Composition part plus a couple of blank rows to add more grapes.
+func (s *Server) compositionForm(wine app.WineDetailView, vopts []views.VarietyOption) views.CompositionFormModel {
+	rows := make([]views.CompositionRow, 0, len(wine.Composition)+2)
+	for _, p := range wine.Composition {
+		rows = append(rows, views.CompositionRow{VarietyID: p.VarietyID.String(), Proportion: strconv.Itoa(p.Proportion)})
+	}
+	rows = append(rows, views.CompositionRow{}, views.CompositionRow{})
+	return views.CompositionFormModel{
+		WineID:    wine.ID.String(),
+		WineLabel: wine.Label,
+		Varieties: vopts,
+		Rows:      rows,
+	}
+}
+
+// compositionFormFromRequest rebuilds the form from a failed submit, preserving
+// the rows the Drinker entered.
+func (s *Server) compositionFormFromRequest(wineID domain.ID, r *http.Request, vopts []views.VarietyOption) views.CompositionFormModel {
+	vids := r.Form["variety_id"]
+	props := r.Form["proportion"]
+	rows := make([]views.CompositionRow, 0, len(vids)+1)
+	for i, vid := range vids {
+		prop := ""
+		if i < len(props) {
+			prop = props[i]
+		}
+		rows = append(rows, views.CompositionRow{VarietyID: vid, Proportion: prop})
+	}
+	rows = append(rows, views.CompositionRow{})
+	return views.CompositionFormModel{
+		WineID:    wineID.String(),
+		Varieties: vopts,
+		Rows:      rows,
+	}
+}
+
+// compositionError maps an edit failure to a form-level message.
+func compositionError(err error) string {
+	if errors.Is(err, domain.ErrNotFound) {
+		return "please choose known grapes"
+	}
+	return "grapes must add up to about 100%, with at least one grape"
+}
+
+func (s *Server) varietyOptions(ctx context.Context) ([]views.VarietyOption, error) {
+	vs, err := s.varieties.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(vs, func(i, j int) bool { return vs[i].Name < vs[j].Name })
+	opts := make([]views.VarietyOption, 0, len(vs))
+	for _, v := range vs {
+		opts = append(opts, views.VarietyOption{ID: v.ID.String(), Name: v.Name})
+	}
+	return opts, nil
 }
 
 func (s *Server) handleLogTasting(w http.ResponseWriter, r *http.Request) {

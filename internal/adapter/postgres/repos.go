@@ -71,7 +71,11 @@ func (r *WineRepo) Get(ctx context.Context, id domain.ID) (domain.Wine, error) {
 	if err != nil {
 		return domain.Wine{}, err
 	}
-	return domain.Wine{ID: domain.ID(idStr), Producer: producer, Name: name, Style: style}, nil
+	parts, err := r.compositionParts(ctx, domain.ID(idStr))
+	if err != nil {
+		return domain.Wine{}, err
+	}
+	return domain.Wine{ID: domain.ID(idStr), Producer: producer, Name: name, Style: style, Composition: domain.Composition{Parts: parts}}, nil
 }
 
 func (r *WineRepo) List(ctx context.Context) ([]domain.Wine, error) {
@@ -88,7 +92,65 @@ func (r *WineRepo) List(ctx context.Context) ([]domain.Wine, error) {
 		}
 		out = append(out, domain.Wine{ID: domain.ID(id), Producer: producer, Name: name, Style: style})
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Attach each Wine's Composition from the link table.
+	for i := range out {
+		parts, err := r.compositionParts(ctx, out[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		out[i].Composition = domain.Composition{Parts: parts}
+	}
+	return out, nil
+}
+
+// compositionParts reads a Wine's Composition rows, ordered by descending share
+// so the dominant Variety leads.
+func (r *WineRepo) compositionParts(ctx context.Context, wineID domain.ID) ([]domain.CompositionPart, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT variety_id, proportion FROM wine_varieties WHERE wine_id=$1 ORDER BY proportion DESC`, wineID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.CompositionPart
+	for rows.Next() {
+		var vid string
+		var prop int
+		if err := rows.Scan(&vid, &prop); err != nil {
+			return nil, err
+		}
+		out = append(out, domain.CompositionPart{VarietyID: domain.ID(vid), Proportion: prop})
+	}
 	return out, rows.Err()
+}
+
+// SetComposition replaces a Wine's Composition atomically: it clears the
+// existing wine_varieties rows and inserts the new ones in a single
+// transaction, so the Wine aggregate is never left with a half-written
+// Composition. The caller has already validated the Composition through the
+// domain.
+func (r *WineRepo) SetComposition(ctx context.Context, wineID domain.ID, c domain.Composition) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `DELETE FROM wine_varieties WHERE wine_id=$1`, wineID.String()); err != nil {
+		return err
+	}
+	for _, p := range c.Parts {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO wine_varieties (wine_id, variety_id, proportion) VALUES ($1, $2, $3)`,
+			wineID.String(), p.VarietyID.String(), p.Proportion,
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 // VarietyRepo implements domain.VarietyRepository.

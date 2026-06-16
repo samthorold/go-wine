@@ -63,6 +63,21 @@ func (r *WineRepo) Save(w domain.Wine) {
 	r.data[w.ID] = w
 }
 
+// SetComposition replaces the stored Wine's Composition, keeping the Wine and
+// its Composition together in one aggregate, matching the Postgres adapter's
+// transactional write.
+func (r *WineRepo) SetComposition(_ context.Context, wineID domain.ID, c domain.Composition) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	w, ok := r.data[wineID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	w.Composition = c
+	r.data[wineID] = w
+	return nil
+}
+
 func (r *WineRepo) Get(_ context.Context, id domain.ID) (domain.Wine, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

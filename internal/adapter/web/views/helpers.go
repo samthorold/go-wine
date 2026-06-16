@@ -83,6 +83,34 @@ func (m LogFormModel) companionSelected(id string) bool {
 	return false
 }
 
+// VarietyOption is the composition form's view of a pickable Variety.
+type VarietyOption struct {
+	ID   string
+	Name string
+}
+
+// CompositionRow is one editable row in the composition form: the chosen
+// Variety (empty when the Drinker hasn't picked one yet) and the proportion
+// typed. Entered values are preserved across a failed submit.
+type CompositionRow struct {
+	VarietyID  string
+	Proportion string
+}
+
+// CompositionFormModel is the view model the edit-Composition form renders: the
+// Wine being edited, the Varieties to pick from, the rows entered (preserved
+// across a failed submit), and a field-to-message error map. Errors is empty on
+// first paint; the empty-string key carries a form-level banner.
+type CompositionFormModel struct {
+	WineID    string
+	WineLabel string
+	Varieties []VarietyOption
+	Rows      []CompositionRow
+	Errors    map[string]string
+}
+
+func (m CompositionFormModel) err(field string) string { return m.Errors[field] }
+
 func ratingStars(r int) string {
 	if r < 0 {
 		r = 0

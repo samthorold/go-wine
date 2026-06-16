@@ -12,4 +12,8 @@ var (
 	// ErrValidation is the umbrella for invariant violations when constructing
 	// domain entities.
 	ErrValidation = errors.New("validation failed")
+
+	// ErrInvalidComposition is returned when a Wine's Composition is empty or its
+	// proportions do not sum to ~100%.
+	ErrInvalidComposition = errors.New("composition must have at least one variety and proportions summing to ~100%")
 )

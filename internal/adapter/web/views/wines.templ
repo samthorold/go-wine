@@ -1,0 +1,110 @@
+package views
+
+import (
+	"strconv"
+
+	"go-wine/internal/app"
+)
+
+// WinesPage is the browse view for the global set of Wines. A Drinker can
+// navigate to and bookmark it, so it is a page: Layout + content.
+templ WinesPage(drinkers []DrinkerOption, wines []app.WineView) {
+	@Layout("Wines", drinkers) {
+		<h2>Wines</h2>
+		@WineList(wines)
+	}
+}
+
+// WineList renders the #wines region.
+templ WineList(wines []app.WineView) {
+	<div id="wines">
+		if len(wines) == 0 {
+			<p class="empty">No wines yet.</p>
+		} else {
+			<ul>
+				for _, w := range wines {
+					<li>
+						<a href={ templ.SafeURL("/wines/" + w.ID.String()) }>{ w.Label }</a>
+						if w.Style != "" {
+							<span>— { w.Style }</span>
+						}
+						if !w.HasComposition {
+							<span class="empty">(no grapes set)</span>
+						}
+					</li>
+				}
+			</ul>
+		}
+	</div>
+}
+
+// WineDetailPage is the view for a single Wine: its identity, its Composition,
+// and the form to edit the Composition. Bookmarkable, so it is a page.
+templ WineDetailPage(drinkers []DrinkerOption, wine app.WineDetailView, form CompositionFormModel) {
+	@Layout(wine.Label, drinkers) {
+		<p><a href="/wines">← Wines</a></p>
+		<h2>{ wine.Label }</h2>
+		if wine.Style != "" {
+			<p>Style: { wine.Style }</p>
+		}
+		@CompositionView(wine)
+		<h3>Edit grapes</h3>
+		@CompositionForm(form)
+	}
+}
+
+// CompositionView renders the #composition region for first paint.
+templ CompositionView(wine app.WineDetailView) {
+	@compositionView(wine, false)
+}
+
+// CompositionViewOOB renders the same #composition region marked for an
+// out-of-band swap, used in the PUT /wines/{id} success response so the current
+// grapes update alongside the re-rendered form.
+templ CompositionViewOOB(wine app.WineDetailView) {
+	@compositionView(wine, true)
+}
+
+// compositionView is the single source of the #composition markup, so first
+// paint and OOB re-render cannot drift.
+templ compositionView(wine app.WineDetailView, oob bool) {
+	<div id="composition" if oob { hx-swap-oob="true" }>
+		<h3>Composition</h3>
+		if len(wine.Composition) == 0 {
+			<p class="empty">No grapes set yet.</p>
+		} else {
+			<ul>
+				for _, p := range wine.Composition {
+					<li>{ p.VarietyName } — { strconv.Itoa(p.Proportion) }%</li>
+				}
+			</ul>
+		}
+	</div>
+}
+
+// CompositionForm renders the edit-Composition form. It owns #composition-form
+// so first paint and the 422 re-render render from one component and cannot
+// drift. On success the server swaps in a fresh #composition view (OOB) plus an
+// empty form; on a 422 it re-renders this form with the entered rows preserved.
+templ CompositionForm(model CompositionFormModel) {
+	<form id="composition-form" hx-put={ "/wines/" + model.WineID } hx-target="#composition-form" hx-swap="outerHTML">
+		if msg := model.err(""); msg != "" {
+			<p class="error banner" role="alert">{ msg }</p>
+		}
+		for i, row := range model.Rows {
+			<fieldset role="group">
+				<select name="variety_id" aria-label="Variety">
+					<option value="">— grape —</option>
+					for _, v := range model.Varieties {
+						<option value={ v.ID } selected?={ v.ID == row.VarietyID }>{ v.Name }</option>
+					}
+				</select>
+				<input type="number" name="proportion" aria-label="Proportion %" placeholder="%" min="0" max="100" value={ row.Proportion }/>
+				if msg := model.err("row-" + strconv.Itoa(i)); msg != "" {
+					<span class="error">{ msg }</span>
+				}
+			</fieldset>
+		}
+		<button type="submit">Save grapes</button>
+	</form>
+}

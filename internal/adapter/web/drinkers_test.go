@@ -29,12 +29,16 @@ func newDrinkerTestServer(t *testing.T) (*web.Server, domain.Drinker, *memory.Dr
 		t.Fatalf("save drinker: %v", err)
 	}
 
+	varieties := memory.NewVarietyRepo()
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
 	listH := app.NewListTastingsHandler(wines, tastings, companions)
-	listV := app.NewListVarietiesHandler(memory.NewVarietyRepo())
+	listV := app.NewListVarietiesHandler(varieties)
+	listW := app.NewListWinesHandler(wines)
+	getW := app.NewGetWineHandler(wines, varieties)
+	editC := app.NewEditCompositionHandler(wines, varieties)
 	createH := app.NewCreateDrinkerHandler(drinkers)
 	renameH := app.NewRenameDrinkerHandler(drinkers)
-	srv := web.NewServer(drinkers, wines, companions, logH, listH, listV, createH, renameH)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, listW, getW, editC, createH, renameH)
 	return srv, d, drinkers
 }
 

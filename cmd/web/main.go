@@ -57,9 +57,12 @@ func main() {
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
 	listH := app.NewListTastingsHandler(wines, tastings, companions)
 	listV := app.NewListVarietiesHandler(varieties)
+	listW := app.NewListWinesHandler(wines)
+	getW := app.NewGetWineHandler(wines, varieties)
+	editC := app.NewEditCompositionHandler(wines, varieties)
 	createD := app.NewCreateDrinkerHandler(drinkers)
 	renameD := app.NewRenameDrinkerHandler(drinkers)
-	srv := web.NewServer(drinkers, wines, companions, logH, listH, listV, createD, renameD)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, listW, getW, editC, createD, renameD)
 
 	addr := ":" + envOr("PORT", "8080")
 	log.Printf("go-wine listening on %s", addr)

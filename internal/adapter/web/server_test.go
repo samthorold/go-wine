@@ -29,6 +29,7 @@ func newTestServerWithCompanions(t *testing.T) (*web.Server, domain.Drinker, dom
 	drinkers := memory.NewDrinkerRepo()
 	wines := memory.NewWineRepo()
 	tastings := memory.NewTastingRepo()
+	varieties := memory.NewVarietyRepo()
 	companions := memory.NewCompanionRepo()
 
 	d, err := domain.NewDrinker("Sam")
@@ -47,10 +48,13 @@ func newTestServerWithCompanions(t *testing.T) (*web.Server, domain.Drinker, dom
 
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
 	listH := app.NewListTastingsHandler(wines, tastings, companions)
-	listV := app.NewListVarietiesHandler(memory.NewVarietyRepo())
+	listV := app.NewListVarietiesHandler(varieties)
+	listW := app.NewListWinesHandler(wines)
+	getW := app.NewGetWineHandler(wines, varieties)
+	editC := app.NewEditCompositionHandler(wines, varieties)
 	createD := app.NewCreateDrinkerHandler(drinkers)
 	renameD := app.NewRenameDrinkerHandler(drinkers)
-	return web.NewServer(drinkers, wines, companions, logH, listH, listV, createD, renameD), d, w, companions
+	return web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, listW, getW, editC, createD, renameD), d, w, companions
 }
 
 func TestSwitch_PostSetsCookieAndRedirectsToTastings(t *testing.T) {

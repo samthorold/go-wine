@@ -29,6 +29,11 @@ templ Layout(title string, drinkers []DrinkerOption) {
 			<main class="container">
 				<nav>
 					<ul><li><strong>🍷 go-wine</strong></li></ul>
+					<ul>
+						<li><a href="/tastings">Tastings</a></li>
+						<li><a href="/wines">Wines</a></li>
+						<li><a href="/varieties">Varieties</a></li>
+					</ul>
 					<ul><li>@DrinkerSwitcher(DrinkerSwitcherModel{Drinkers: drinkers})</li></ul>
 				</nav>
 				{ children... }

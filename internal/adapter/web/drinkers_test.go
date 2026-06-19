@@ -41,7 +41,8 @@ func newDrinkerTestServer(t *testing.T) (*web.Server, domain.Drinker, *memory.Dr
 	styleC := app.NewResolveStyleCompositionHandler(varieties, nil)
 	createH := app.NewCreateDrinkerHandler(drinkers)
 	renameH := app.NewRenameDrinkerHandler(drinkers)
-	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createH, renameH)
+	prefs := app.NewPreferencesHandler(wines, varieties, tastings)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createH, renameH, prefs)
 	return srv, d, drinkers
 }
 

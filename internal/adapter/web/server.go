@@ -33,13 +33,14 @@ type Server struct {
 	styleComposition    *app.ResolveStyleCompositionHandler
 	createDrinker       *app.CreateDrinkerHandler
 	renameDrinker       *app.RenameDrinkerHandler
+	preferences         *app.PreferencesHandler
 	drinkers            domain.DrinkerRepository
 	wines               domain.WineRepository
 	varieties           domain.VarietyRepository
 	companions          domain.CompanionRepository
 }
 
-func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.VarietyRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, getV *app.GetVarietyHandler, editVC *app.EditCharacteristicsHandler, listW *app.ListWinesHandler, getW *app.GetWineHandler, editC *app.EditCompositionHandler, styleC *app.ResolveStyleCompositionHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler) *Server {
+func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.VarietyRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, getV *app.GetVarietyHandler, editVC *app.EditCharacteristicsHandler, listW *app.ListWinesHandler, getW *app.GetWineHandler, editC *app.EditCompositionHandler, styleC *app.ResolveStyleCompositionHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler, prefs *app.PreferencesHandler) *Server {
 	s := &Server{
 		mux:                 http.NewServeMux(),
 		logTasting:          logH,
@@ -53,6 +54,7 @@ func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.Var
 		styleComposition:    styleC,
 		createDrinker:       createD,
 		renameDrinker:       renameD,
+		preferences:         prefs,
 		drinkers:            d,
 		wines:               w,
 		varieties:           v,
@@ -128,7 +130,12 @@ func (s *Server) handleVarieties(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = views.VarietiesPage(dopts, varieties).Render(ctx, w)
+	profile, err := s.preferences.TasteProfile(ctx, active.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.VarietiesPage(dopts, varieties, profile).Render(ctx, w)
 }
 
 // handleVariety renders a single Variety's detail page: its name, intrinsic
@@ -155,7 +162,12 @@ func (s *Server) handleVariety(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = views.VarietyDetailPage(dopts, variety, characteristicsForm(variety)).Render(ctx, w)
+	pref, err := s.preferences.VarietyPreference(ctx, active.ID, id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.VarietyDetailPage(dopts, variety, characteristicsForm(variety), pref).Render(ctx, w)
 }
 
 // handleVarietyEdit returns the bare edit-characteristics form fragment, prefilled
@@ -314,7 +326,12 @@ func (s *Server) handleWine(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = views.WineDetailPage(dopts, wine, s.compositionForm(wine, vopts)).Render(ctx, w)
+	verdict, err := s.preferences.WineVerdict(ctx, active.ID, id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.WineDetailPage(dopts, wine, s.compositionForm(wine, vopts), verdict).Render(ctx, w)
 }
 
 // handleEditComposition sets a Wine's Composition. Success swaps a fresh empty

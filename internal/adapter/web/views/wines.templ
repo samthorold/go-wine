@@ -38,19 +38,44 @@ templ WineList(wines []app.WineView) {
 	</div>
 }
 
-// WineDetailPage is the view for a single Wine: its identity, its Composition,
-// and the form to edit the Composition. Bookmarkable, so it is a page.
-templ WineDetailPage(drinkers []DrinkerOption, wine app.WineDetailView, form CompositionFormModel) {
+// WineDetailPage is the view for a single Wine: its identity, the active
+// Drinker's verdict ("do I like this Wine?"), its Composition, and the form to
+// edit the Composition. Bookmarkable, so it is a page.
+templ WineDetailPage(drinkers []DrinkerOption, wine app.WineDetailView, form CompositionFormModel, verdict app.WineVerdictView) {
 	@Layout(wine.Label, drinkers) {
 		<p><a href="/wines">← Wines</a></p>
 		<h2>{ wine.Label }</h2>
 		if wine.Style != "" {
 			<p>Style: { wine.Style }</p>
 		}
+		@WineVerdictView(verdict)
 		@CompositionView(wine)
 		<h3>Edit grapes</h3>
 		@CompositionForm(form)
 	}
+}
+
+// WineVerdictView renders the active Drinker's aggregate verdict for the Wine —
+// "do I like this Wine?" computed from their Tastings. An untasted Wine reads as
+// a clear not-yet-tasted, never a zero rating.
+templ WineVerdictView(verdict app.WineVerdictView) {
+	<div id="wine-verdict">
+		<h3>Do I like this wine?</h3>
+		if !verdict.Tasted {
+			<p class="empty">Not yet tasted.</p>
+		} else {
+			<p>
+				<span class="stars">{ ratingStars(int(verdict.MeanRating + 0.5)) }</span>
+				{ strconv.FormatFloat(verdict.MeanRating, 'g', 3, 64) } average
+				over { strconv.Itoa(verdict.Count) }
+				if verdict.Count == 1 {
+					tasting
+				} else {
+					tastings
+				}
+			</p>
+		}
+	</div>
 }
 
 // CompositionView renders the #composition region for first paint.

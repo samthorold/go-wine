@@ -34,13 +34,14 @@ type Server struct {
 	createDrinker       *app.CreateDrinkerHandler
 	renameDrinker       *app.RenameDrinkerHandler
 	preferences         *app.PreferencesHandler
+	discovery           *app.DiscoveryHandler
 	drinkers            domain.DrinkerRepository
 	wines               domain.WineRepository
 	varieties           domain.VarietyRepository
 	companions          domain.CompanionRepository
 }
 
-func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.VarietyRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, getV *app.GetVarietyHandler, editVC *app.EditCharacteristicsHandler, listW *app.ListWinesHandler, getW *app.GetWineHandler, editC *app.EditCompositionHandler, styleC *app.ResolveStyleCompositionHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler, prefs *app.PreferencesHandler) *Server {
+func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.VarietyRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, getV *app.GetVarietyHandler, editVC *app.EditCharacteristicsHandler, listW *app.ListWinesHandler, getW *app.GetWineHandler, editC *app.EditCompositionHandler, styleC *app.ResolveStyleCompositionHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler, prefs *app.PreferencesHandler, disco *app.DiscoveryHandler) *Server {
 	s := &Server{
 		mux:                 http.NewServeMux(),
 		logTasting:          logH,
@@ -55,6 +56,7 @@ func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.Var
 		createDrinker:       createD,
 		renameDrinker:       renameD,
 		preferences:         prefs,
+		discovery:           disco,
 		drinkers:            d,
 		wines:               w,
 		varieties:           v,
@@ -63,6 +65,7 @@ func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.Var
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /tastings", s.handleTastings)
 	s.mux.HandleFunc("POST /tastings", s.handleLogTasting)
+	s.mux.HandleFunc("GET /discovery", s.handleDiscovery)
 	s.mux.HandleFunc("GET /varieties", s.handleVarieties)
 	s.mux.HandleFunc("GET /varieties/{id}", s.handleVariety)
 	s.mux.HandleFunc("GET /varieties/{id}/edit", s.handleVarietyEdit)
@@ -111,6 +114,29 @@ func (s *Server) handleTastings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = views.TastingsPage(dopts, views.LogFormModel{Wines: wopts, Companions: copts}, tastings).Render(ctx, w)
+}
+
+// handleDiscovery renders the Discovery page: the grapes the active Drinker
+// hasn't logged, ranked by proximity to their enjoyed-grape set, each annotated
+// with the enjoyed grape(s) that justify it. Scoped to the active Drinker.
+func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	active, err := s.activeDrinker(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dopts, err := s.drinkerOptions(ctx, active.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	recs, err := s.discovery.Handle(ctx, active.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.DiscoveryPage(dopts, recs).Render(ctx, w)
 }
 
 func (s *Server) handleVarieties(w http.ResponseWriter, r *http.Request) {

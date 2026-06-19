@@ -1,0 +1,41 @@
+package views
+
+import (
+	"strings"
+
+	"go-wine/internal/app"
+)
+
+// DiscoveryPage is the Discovery view — the app's reason to exist: grape
+// Varieties the active Drinker hasn't logged, ranked by proximity to their
+// enjoyed-grape set, each annotated with the enjoyed grape(s) that justify it. A
+// Drinker can navigate to and bookmark it, so it is a page: Layout + content.
+templ DiscoveryPage(drinkers []DrinkerOption, recs []app.RecommendationView) {
+	@Layout("Discovery", drinkers) {
+		<h2>Discover</h2>
+		<p>Grapes you haven't logged yet, nearest to the ones you've loved.</p>
+		@RecommendationList(recs)
+	}
+}
+
+// RecommendationList renders the #recommendations region: the ranked
+// recommendations, each explained by the enjoyed grape(s) it sits nearest to.
+// An empty list (no enjoyed grapes yet) shows a clear explanatory state.
+templ RecommendationList(recs []app.RecommendationView) {
+	<div id="recommendations">
+		if len(recs) == 0 {
+			<p class="empty">No recommendations yet — log some tastings you loved and we'll find grapes near them.</p>
+		} else {
+			<ul>
+				for _, r := range recs {
+					<li>
+						<a href={ templ.SafeURL("/varieties/" + r.VarietyID.String()) }>{ r.Name }</a>
+						if len(r.Because) > 0 {
+							<span class="because">— because you loved { strings.Join(r.Because, ", ") }</span>
+						}
+					</li>
+				}
+			</ul>
+		}
+	</div>
+}

@@ -48,7 +48,7 @@ func newPrefFixture(t *testing.T) prefFixture {
 	createD := app.NewCreateDrinkerHandler(drinkers)
 	renameD := app.NewRenameDrinkerHandler(drinkers)
 	prefs := app.NewPreferencesHandler(wines, varieties, tastings)
-	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD, prefs)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD, prefs, app.NewDiscoveryHandler(wines, varieties, tastings))
 	return prefFixture{srv: srv, drinker: d, wines: wines, varieties: varieties, tastings: tastings}
 }
 

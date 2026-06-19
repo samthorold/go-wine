@@ -11,8 +11,14 @@ package domain
 // demanded: the sum must land within compositionTolerance of 100. That slack
 // lets equal-thirds blends (33/33/33 = 99) and rounded estimates through while
 // still rejecting a Composition that plainly doesn't add up.
+// A Composition carries a single binary Provenance, exactly as Characteristics
+// does: 'default' when filled from the Style → Composition seed (a conventional
+// guess), 'confirmed' once the Drinker sets or edits the grapes themselves. The
+// seed-merge (MergeComposition) preserves a confirmed Composition across
+// re-seeds; a default one tracks the current Style seed.
 type Composition struct {
-	Parts []CompositionPart
+	Parts      []CompositionPart
+	Provenance Provenance
 }
 
 // CompositionPart is one Variety's share of a Wine, as an integer percentage.
@@ -28,22 +34,26 @@ const compositionTolerance = 2
 // NewComposition constructs a validated Composition. It rejects an empty
 // Composition (severing the Wine→Composition→Variety chain that Discovery walks)
 // and any proportion sum outside the tolerance band around 100%.
-func NewComposition(parts []CompositionPart) (Composition, error) {
+func NewComposition(parts []CompositionPart, p Provenance) (Composition, error) {
 	if len(parts) == 0 {
 		return Composition{}, ErrInvalidComposition
 	}
 	sum := 0
-	for _, p := range parts {
-		if p.VarietyID == "" || p.Proportion < 1 || p.Proportion > 100 {
+	for _, part := range parts {
+		if part.VarietyID == "" || part.Proportion < 1 || part.Proportion > 100 {
 			return Composition{}, ErrInvalidComposition
 		}
-		sum += p.Proportion
+		sum += part.Proportion
 	}
 	if sum < 100-compositionTolerance || sum > 100+compositionTolerance {
 		return Composition{}, ErrInvalidComposition
 	}
-	return Composition{Parts: parts}, nil
+	return Composition{Parts: parts, Provenance: p}, nil
 }
 
 // IsZero reports whether a Wine has no Composition set yet.
 func (c Composition) IsZero() bool { return len(c.Parts) == 0 }
+
+// IsConfirmed reports whether the Drinker has set or vetted the grapes
+// themselves, so a re-seed must never clobber them.
+func (c Composition) IsConfirmed() bool { return c.Provenance == ProvenanceConfirmed }

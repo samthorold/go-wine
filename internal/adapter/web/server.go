@@ -30,6 +30,7 @@ type Server struct {
 	listWines           *app.ListWinesHandler
 	getWine             *app.GetWineHandler
 	editComposition     *app.EditCompositionHandler
+	styleComposition    *app.ResolveStyleCompositionHandler
 	createDrinker       *app.CreateDrinkerHandler
 	renameDrinker       *app.RenameDrinkerHandler
 	drinkers            domain.DrinkerRepository
@@ -38,7 +39,7 @@ type Server struct {
 	companions          domain.CompanionRepository
 }
 
-func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.VarietyRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, getV *app.GetVarietyHandler, editVC *app.EditCharacteristicsHandler, listW *app.ListWinesHandler, getW *app.GetWineHandler, editC *app.EditCompositionHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler) *Server {
+func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.VarietyRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, getV *app.GetVarietyHandler, editVC *app.EditCharacteristicsHandler, listW *app.ListWinesHandler, getW *app.GetWineHandler, editC *app.EditCompositionHandler, styleC *app.ResolveStyleCompositionHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler) *Server {
 	s := &Server{
 		mux:                 http.NewServeMux(),
 		logTasting:          logH,
@@ -49,6 +50,7 @@ func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.Var
 		listWines:           listW,
 		getWine:             getW,
 		editComposition:     editC,
+		styleComposition:    styleC,
 		createDrinker:       createD,
 		renameDrinker:       renameD,
 		drinkers:            d,
@@ -65,6 +67,7 @@ func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.Var
 	s.mux.HandleFunc("PUT /varieties/{id}", s.handleEditCharacteristics)
 	s.mux.HandleFunc("GET /wines", s.handleWines)
 	s.mux.HandleFunc("GET /wines/{id}", s.handleWine)
+	s.mux.HandleFunc("GET /wines/{id}/style-default", s.handleWineStyleDefault)
 	s.mux.HandleFunc("PUT /wines/{id}", s.handleEditComposition)
 	s.mux.HandleFunc("POST /switch", s.handleSwitch)
 	s.mux.HandleFunc("POST /drinkers", s.handleCreateDrinker)
@@ -356,6 +359,63 @@ func (s *Server) handleEditComposition(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
+// handleWineStyleDefault returns the edit-Composition form prefilled with the
+// Wine's Style → default Composition — the conventional grapes a label's Style
+// implies — so a Drinker who doesn't know the grapes can fill them from the
+// Style and then override before saving. It is a fragment GET (a sub-resource of
+// the Wine, named for what fills the target): it returns the bare CompositionForm
+// the caller swaps into #composition-form. Saving the form (PUT) confirms the
+// grapes. A Style with no conventional default falls back to the Wine's current
+// rows with a gentle note; an unknown Wine is a 404.
+func (s *Server) handleWineStyleDefault(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := domain.ID(r.PathValue("id"))
+	wine, err := s.getWine.Handle(ctx, id)
+	if errors.Is(err, domain.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	vopts, err := s.varietyOptions(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	c, err := s.styleComposition.Handle(ctx, wine.Style)
+	if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrInvalidComposition) {
+		// No conventional default for this Style (or none its grapes can form):
+		// re-render the form as-is with a gentle banner, rather than erroring.
+		model := s.compositionForm(wine, vopts)
+		model.Errors = map[string]string{"": "no conventional grapes are known for this style — please enter them"}
+		_ = views.CompositionForm(model).Render(ctx, w)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Prefill the form rows from the Style default; the Drinker can override
+	// before saving (which confirms the grapes).
+	rows := make([]views.CompositionRow, 0, len(c.Parts)+1)
+	for _, p := range c.Parts {
+		rows = append(rows, views.CompositionRow{VarietyID: p.VarietyID.String(), Proportion: strconv.Itoa(p.Proportion)})
+	}
+	rows = append(rows, views.CompositionRow{})
+	model := views.CompositionFormModel{
+		WineID:    wine.ID.String(),
+		WineLabel: wine.Label,
+		Style:     wine.Style,
+		Varieties: vopts,
+		Rows:      rows,
+	}
+	_ = views.CompositionForm(model).Render(ctx, w)
+}
+
 // wineExists reports whether the Wine itself exists, used to distinguish an
 // unknown-Variety ErrNotFound (a 422 against the form) from an unknown-Wine
 // ErrNotFound (a 404).
@@ -395,6 +455,7 @@ func (s *Server) compositionForm(wine app.WineDetailView, vopts []views.VarietyO
 	return views.CompositionFormModel{
 		WineID:    wine.ID.String(),
 		WineLabel: wine.Label,
+		Style:     wine.Style,
 		Varieties: vopts,
 		Rows:      rows,
 	}
@@ -414,8 +475,13 @@ func (s *Server) compositionFormFromRequest(wineID domain.ID, r *http.Request, v
 		rows = append(rows, views.CompositionRow{VarietyID: vid, Proportion: prop})
 	}
 	rows = append(rows, views.CompositionRow{})
+	style := ""
+	if wine, err := s.wines.Get(r.Context(), wineID); err == nil {
+		style = wine.Style
+	}
 	return views.CompositionFormModel{
 		WineID:    wineID.String(),
+		Style:     style,
 		Varieties: vopts,
 		Rows:      rows,
 	}

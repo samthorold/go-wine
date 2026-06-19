@@ -18,7 +18,7 @@ func TestWineRepo_SetCompositionPersistsAndReadsBack(t *testing.T) {
 		{VarietyID: g, Proportion: 60},
 		{VarietyID: s, Proportion: 25},
 		{VarietyID: m, Proportion: 15},
-	})
+	}, domain.ProvenanceConfirmed)
 	if err := repo.SetComposition(context.Background(), w.ID, c); err != nil {
 		t.Fatalf("SetComposition: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestWineRepo_SetCompositionPersistsAndReadsBack(t *testing.T) {
 
 func TestWineRepo_SetCompositionUnknownWineIsNotFound(t *testing.T) {
 	repo := NewWineRepo()
-	c, _ := domain.NewComposition([]domain.CompositionPart{{VarietyID: domain.NewID(), Proportion: 100}})
+	c, _ := domain.NewComposition([]domain.CompositionPart{{VarietyID: domain.NewID(), Proportion: 100}}, domain.ProvenanceConfirmed)
 	if err := repo.SetComposition(context.Background(), domain.NewID(), c); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}

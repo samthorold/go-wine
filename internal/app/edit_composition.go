@@ -52,7 +52,9 @@ func (h *EditCompositionHandler) Handle(ctx context.Context, cmd EditComposition
 	}
 
 	// Validate through the aggregate root: SetComposition enforces the invariant.
-	if err := wine.SetComposition(parts); err != nil {
+	// A Drinker editing the grapes by hand confirms them, so a future Style
+	// re-seed must never clobber this Composition.
+	if err := wine.SetComposition(parts, domain.ProvenanceConfirmed); err != nil {
 		return err
 	}
 

@@ -63,8 +63,8 @@ type WineRepo struct{ pool *pgxpool.Pool }
 func NewWineRepo(p *pgxpool.Pool) *WineRepo { return &WineRepo{pool: p} }
 
 func (r *WineRepo) Get(ctx context.Context, id domain.ID) (domain.Wine, error) {
-	var idStr, producer, name, style string
-	err := r.pool.QueryRow(ctx, `SELECT id, producer, name, style FROM wines WHERE id=$1`, id.String()).Scan(&idStr, &producer, &name, &style)
+	var idStr, producer, name, style, prov string
+	err := r.pool.QueryRow(ctx, `SELECT id, producer, name, style, composition_provenance FROM wines WHERE id=$1`, id.String()).Scan(&idStr, &producer, &name, &style, &prov)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Wine{}, domain.ErrNotFound
 	}
@@ -75,33 +75,48 @@ func (r *WineRepo) Get(ctx context.Context, id domain.ID) (domain.Wine, error) {
 	if err != nil {
 		return domain.Wine{}, err
 	}
-	return domain.Wine{ID: domain.ID(idStr), Producer: producer, Name: name, Style: style, Composition: domain.Composition{Parts: parts}}, nil
+	return domain.Wine{ID: domain.ID(idStr), Producer: producer, Name: name, Style: style, Composition: composition(parts, prov)}, nil
+}
+
+// composition rebuilds a Wine's Composition value object from its stored parts
+// and provenance text. An empty part set is the zero Composition (IsZero).
+func composition(parts []domain.CompositionPart, prov string) domain.Composition {
+	if len(parts) == 0 {
+		return domain.Composition{}
+	}
+	return domain.Composition{Parts: parts, Provenance: provenanceFromText(prov)}
 }
 
 func (r *WineRepo) List(ctx context.Context) ([]domain.Wine, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id, producer, name, style FROM wines ORDER BY producer, name`)
+	rows, err := r.pool.Query(ctx, `SELECT id, producer, name, style, composition_provenance FROM wines ORDER BY producer, name`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []domain.Wine
+	type wineRow struct {
+		wine domain.Wine
+		prov string
+	}
+	var rowsOut []wineRow
 	for rows.Next() {
-		var id, producer, name, style string
-		if err := rows.Scan(&id, &producer, &name, &style); err != nil {
+		var id, producer, name, style, prov string
+		if err := rows.Scan(&id, &producer, &name, &style, &prov); err != nil {
 			return nil, err
 		}
-		out = append(out, domain.Wine{ID: domain.ID(id), Producer: producer, Name: name, Style: style})
+		rowsOut = append(rowsOut, wineRow{wine: domain.Wine{ID: domain.ID(id), Producer: producer, Name: name, Style: style}, prov: prov})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	// Attach each Wine's Composition from the link table.
-	for i := range out {
-		parts, err := r.compositionParts(ctx, out[i].ID)
+	out := make([]domain.Wine, 0, len(rowsOut))
+	for _, wr := range rowsOut {
+		parts, err := r.compositionParts(ctx, wr.wine.ID)
 		if err != nil {
 			return nil, err
 		}
-		out[i].Composition = domain.Composition{Parts: parts}
+		wr.wine.Composition = composition(parts, wr.prov)
+		out = append(out, wr.wine)
 	}
 	return out, nil
 }
@@ -128,10 +143,11 @@ func (r *WineRepo) compositionParts(ctx context.Context, wineID domain.ID) ([]do
 }
 
 // SetComposition replaces a Wine's Composition atomically: it clears the
-// existing wine_varieties rows and inserts the new ones in a single
-// transaction, so the Wine aggregate is never left with a half-written
-// Composition. The caller has already validated the Composition through the
-// domain.
+// existing wine_varieties rows, inserts the new ones, and stamps the Wine's
+// composition_provenance, all in a single transaction, so the Wine aggregate is
+// never left with a half-written Composition. The caller has already validated
+// the Composition through the domain (and, on a re-seed, run it through the
+// no-clobber merge).
 func (r *WineRepo) SetComposition(ctx context.Context, wineID domain.ID, c domain.Composition) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -140,6 +156,12 @@ func (r *WineRepo) SetComposition(ctx context.Context, wineID domain.ID, c domai
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx, `DELETE FROM wine_varieties WHERE wine_id=$1`, wineID.String()); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE wines SET composition_provenance=$2 WHERE id=$1`,
+		wineID.String(), provenanceText(c.Provenance),
+	); err != nil {
 		return err
 	}
 	for _, p := range c.Parts {

@@ -27,10 +27,13 @@ func NewWine(producer, name, style string) (Wine, error) {
 }
 
 // SetComposition validates and sets the Wine's Composition, enforcing the
-// aggregate invariant (≥1 Variety, proportions summing to ~100%). It returns
-// ErrInvalidComposition and leaves the Wine unchanged on a bad Composition.
-func (w *Wine) SetComposition(parts []CompositionPart) error {
-	c, err := NewComposition(parts)
+// aggregate invariant (≥1 Variety, proportions summing to ~100%). The Provenance
+// records where the grapes came from: ProvenanceConfirmed when the Drinker names
+// or edits them by hand (a re-seed must never clobber these), ProvenanceDefault
+// when filled from the Style → Composition seed. It returns ErrInvalidComposition
+// and leaves the Wine unchanged on a bad Composition.
+func (w *Wine) SetComposition(parts []CompositionPart, p Provenance) error {
+	c, err := NewComposition(parts, p)
 	if err != nil {
 		return err
 	}

@@ -63,9 +63,10 @@ func main() {
 	listW := app.NewListWinesHandler(wines)
 	getW := app.NewGetWineHandler(wines, varieties)
 	editC := app.NewEditCompositionHandler(wines, varieties)
+	styleC := app.NewResolveStyleCompositionHandler(varieties, seedpkg.StyleCompositions())
 	createD := app.NewCreateDrinkerHandler(drinkers)
 	renameD := app.NewRenameDrinkerHandler(drinkers)
-	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, createD, renameD)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD)
 
 	addr := ":" + envOr("PORT", "8080")
 	log.Printf("go-wine listening on %s", addr)
@@ -114,6 +115,12 @@ func seedMemory(drinkers *memory.DrinkerRepo, wines *memory.WineRepo, varieties 
 	// so confirmed values would survive a re-seed exactly as on Postgres.
 	if err := app.SeedCharacteristics(context.Background(), varieties, seedpkg.Characteristics()); err != nil {
 		log.Printf("seed characteristics (memory): %v", err)
+	}
+	// Fill each Wine's default Composition from the Style → Composition map through
+	// the same domain seed-merge, so a confirmed Composition would survive a
+	// re-seed exactly as on Postgres.
+	if err := app.SeedStyleCompositions(context.Background(), wines, varieties, seedpkg.StyleCompositions()); err != nil {
+		log.Printf("seed style compositions (memory): %v", err)
 	}
 }
 

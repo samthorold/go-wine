@@ -115,5 +115,14 @@ func Seed(ctx context.Context, pool *pgxpool.Pool) error {
 	if err := app.SeedCharacteristics(ctx, NewVarietyRepo(pool), seedpkg.Characteristics()); err != nil {
 		return err
 	}
+
+	// Seed each Wine's default Composition from the Style → Composition map,
+	// through the same domain seed-merge: a Wine whose Style has a conventional
+	// default and whose grapes aren't confirmed gets filled, while a Drinker-
+	// confirmed Composition survives untouched. Idempotent and non-clobbering, so
+	// it runs every startup too.
+	if err := app.SeedStyleCompositions(ctx, NewWineRepo(pool), NewVarietyRepo(pool), seedpkg.StyleCompositions()); err != nil {
+		return err
+	}
 	return nil
 }

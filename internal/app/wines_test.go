@@ -16,7 +16,7 @@ func TestListWines_SortsByLabelAndFlagsComposition(t *testing.T) {
 	b, _ := domain.NewWine("Cloudy Bay", "Sauvignon Blanc", "Sauvignon Blanc")
 	wines.Save(a)
 	wines.Save(b)
-	c, _ := domain.NewComposition([]domain.CompositionPart{{VarietyID: domain.NewID(), Proportion: 100}})
+	c, _ := domain.NewComposition([]domain.CompositionPart{{VarietyID: domain.NewID(), Proportion: 100}}, domain.ProvenanceConfirmed)
 	_ = wines.SetComposition(context.Background(), a.ID, c)
 
 	h := app.NewListWinesHandler(wines)
@@ -51,7 +51,7 @@ func TestGetWine_ResolvesVarietyNames(t *testing.T) {
 	c, _ := domain.NewComposition([]domain.CompositionPart{
 		{VarietyID: g.ID, Proportion: 40},
 		{VarietyID: s.ID, Proportion: 60},
-	})
+	}, domain.ProvenanceConfirmed)
 	_ = wines.SetComposition(context.Background(), w.ID, c)
 
 	h := app.NewGetWineHandler(wines, varieties)

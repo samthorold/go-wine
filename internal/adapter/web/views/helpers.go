@@ -104,6 +104,9 @@ type CompositionRow struct {
 type CompositionFormModel struct {
 	WineID    string
 	WineLabel string
+	// Style is the Wine's label-style, if any. When set, the form offers a
+	// "fill from {Style} default" affordance that prefills the conventional grapes.
+	Style     string
 	Varieties []VarietyOption
 	Rows      []CompositionRow
 	Errors    map[string]string

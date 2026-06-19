@@ -67,7 +67,8 @@ func main() {
 	createD := app.NewCreateDrinkerHandler(drinkers)
 	renameD := app.NewRenameDrinkerHandler(drinkers)
 	prefs := app.NewPreferencesHandler(wines, varieties, tastings)
-	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD, prefs)
+	disco := app.NewDiscoveryHandler(wines, varieties, tastings)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD, prefs, disco)
 
 	addr := ":" + envOr("PORT", "8080")
 	log.Printf("go-wine listening on %s", addr)

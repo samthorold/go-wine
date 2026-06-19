@@ -39,7 +39,7 @@ func newVarietyTestServer(t *testing.T) (*web.Server, *memory.VarietyRepo) {
 	createD := app.NewCreateDrinkerHandler(drinkers)
 	renameD := app.NewRenameDrinkerHandler(drinkers)
 	prefs := app.NewPreferencesHandler(wines, varieties, tastings)
-	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD, prefs)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD, prefs, app.NewDiscoveryHandler(wines, varieties, tastings))
 	return srv, varieties
 }
 

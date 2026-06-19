@@ -42,7 +42,7 @@ func newDrinkerTestServer(t *testing.T) (*web.Server, domain.Drinker, *memory.Dr
 	createH := app.NewCreateDrinkerHandler(drinkers)
 	renameH := app.NewRenameDrinkerHandler(drinkers)
 	prefs := app.NewPreferencesHandler(wines, varieties, tastings)
-	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createH, renameH, prefs)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createH, renameH, prefs, app.NewDiscoveryHandler(wines, varieties, tastings))
 	return srv, d, drinkers
 }
 

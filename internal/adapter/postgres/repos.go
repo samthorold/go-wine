@@ -187,6 +187,104 @@ func (r *VarietyRepo) List(ctx context.Context) ([]domain.Variety, error) {
 	return out, rows.Err()
 }
 
+// GetCharacteristics returns a Variety's intrinsic Characteristics, or the zero
+// bundle (IsZero) when none has been seeded yet — the absent-row case. The
+// flavour-note tags are read from the child table.
+func (r *VarietyRepo) GetCharacteristics(ctx context.Context, id domain.ID) (domain.Characteristics, error) {
+	var body, tannin, acidity, sweetness, alcohol int
+	var prov string
+	err := r.pool.QueryRow(ctx,
+		`SELECT body, tannin, acidity, sweetness, alcohol, provenance
+		 FROM variety_characteristics WHERE variety_id=$1`, id.String()).
+		Scan(&body, &tannin, &acidity, &sweetness, &alcohol, &prov)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Characteristics{}, nil
+	}
+	if err != nil {
+		return domain.Characteristics{}, err
+	}
+	notes, err := r.notes(ctx, id)
+	if err != nil {
+		return domain.Characteristics{}, err
+	}
+	return domain.NewCharacteristics(body, tannin, acidity, sweetness, alcohol, notes, provenanceFromText(prov))
+}
+
+func (r *VarietyRepo) notes(ctx context.Context, id domain.ID) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `SELECT note FROM variety_notes WHERE variety_id=$1 ORDER BY note`, id.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// SetCharacteristics replaces a Variety's Characteristics atomically: it upserts
+// the 1:1 axes/provenance row and rewrites the flavour-note rows in a single
+// transaction, so the aggregate is never half-written. The caller has already
+// run the value through the domain seed-merge, so the no-clobber rule is honoured
+// before we reach here. An unknown Variety is ErrNotFound.
+func (r *VarietyRepo) SetCharacteristics(ctx context.Context, id domain.ID, c domain.Characteristics) error {
+	var exists bool
+	if err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM varieties WHERE id=$1)`, id.String()).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return domain.ErrNotFound
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO variety_characteristics (variety_id, body, tannin, acidity, sweetness, alcohol, provenance)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 ON CONFLICT (variety_id) DO UPDATE SET
+		   body=EXCLUDED.body, tannin=EXCLUDED.tannin, acidity=EXCLUDED.acidity,
+		   sweetness=EXCLUDED.sweetness, alcohol=EXCLUDED.alcohol, provenance=EXCLUDED.provenance`,
+		id.String(), c.Body.Int(), c.Tannin.Int(), c.Acidity.Int(), c.Sweetness.Int(), c.Alcohol.Int(), provenanceText(c.Provenance),
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM variety_notes WHERE variety_id=$1`, id.String()); err != nil {
+		return err
+	}
+	for _, n := range c.Notes {
+		if _, err := tx.Exec(ctx, `INSERT INTO variety_notes (variety_id, note) VALUES ($1, $2)`, id.String(), n); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// provenanceText / provenanceFromText map the binary Provenance to and from its
+// stored 'default'/'confirmed' text form.
+func provenanceText(p domain.Provenance) string {
+	if p == domain.ProvenanceConfirmed {
+		return "confirmed"
+	}
+	return "default"
+}
+
+func provenanceFromText(s string) domain.Provenance {
+	if s == "confirmed" {
+		return domain.ProvenanceConfirmed
+	}
+	return domain.ProvenanceDefault
+}
+
 // TastingRepo implements domain.TastingRepository.
 type TastingRepo struct{ pool *pgxpool.Pool }
 

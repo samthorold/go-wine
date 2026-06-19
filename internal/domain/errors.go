@@ -16,4 +16,8 @@ var (
 	// ErrInvalidComposition is returned when a Wine's Composition is empty or its
 	// proportions do not sum to ~100%.
 	ErrInvalidComposition = errors.New("composition must have at least one variety and proportions summing to ~100%")
+
+	// ErrInvalidCharacteristics is returned when a Variety characteristic axis
+	// falls outside the 1..5 rubric.
+	ErrInvalidCharacteristics = errors.New("characteristic axes must be between 1 and 5")
 )

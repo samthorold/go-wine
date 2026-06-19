@@ -19,9 +19,107 @@ templ VarietyList(varieties []app.VarietyView) {
 		} else {
 			<ul>
 				for _, v := range varieties {
-					<li>{ v.Name }</li>
+					<li>
+						<a href={ templ.SafeURL("/varieties/" + v.ID.String()) }>{ v.Name }</a>
+					</li>
 				}
 			</ul>
 		}
 	</div>
+}
+
+// VarietyDetailPage is the view for a single Variety: its name, its intrinsic
+// Characteristics, and the form to edit them. Bookmarkable, so it is a page.
+templ VarietyDetailPage(drinkers []DrinkerOption, variety app.VarietyDetailView, form VarietyCharacteristicsFormModel) {
+	@Layout(variety.Name, drinkers) {
+		<p><a href="/varieties">← Varieties</a></p>
+		<h2>{ variety.Name }</h2>
+		@CharacteristicsView(variety)
+		<h3>Edit characteristics</h3>
+		@VarietyCharacteristicsForm(form)
+	}
+}
+
+// CharacteristicsView renders the #characteristics region for first paint.
+templ CharacteristicsView(variety app.VarietyDetailView) {
+	@characteristicsView(variety, false)
+}
+
+// CharacteristicsViewOOB renders the same #characteristics region marked for an
+// out-of-band swap, used in the PUT /varieties/{id} success response so the
+// current characteristics update alongside the re-rendered form.
+templ CharacteristicsViewOOB(variety app.VarietyDetailView) {
+	@characteristicsView(variety, true)
+}
+
+// characteristicsView is the single source of the #characteristics markup, so
+// first paint and OOB re-render cannot drift.
+templ characteristicsView(variety app.VarietyDetailView, oob bool) {
+	<div id="characteristics" if oob { hx-swap-oob="true" }>
+		<h3>Characteristics</h3>
+		if !variety.HasCharacteristics {
+			<p class="empty">No characteristics set yet.</p>
+		} else {
+			<p>
+				Provenance:
+				if variety.Confirmed {
+					<span class="provenance confirmed">confirmed</span>
+				} else {
+					<span class="provenance default">default</span>
+				}
+			</p>
+			<dl>
+				<dt>Body</dt>
+				<dd>{ axisScale(variety.Body) }</dd>
+				<dt>Tannin</dt>
+				<dd>{ axisScale(variety.Tannin) }</dd>
+				<dt>Acidity</dt>
+				<dd>{ axisScale(variety.Acidity) }</dd>
+				<dt>Sweetness</dt>
+				<dd>{ axisScale(variety.Sweetness) }</dd>
+				<dt>Alcohol</dt>
+				<dd>{ axisScale(variety.Alcohol) }</dd>
+			</dl>
+			if len(variety.Notes) > 0 {
+				<p>
+					Flavour notes:
+					for _, n := range variety.Notes {
+						<span class="tag">{ n }</span>
+					}
+				</p>
+			}
+		}
+	</div>
+}
+
+// VarietyCharacteristicsForm renders the edit-characteristics form. It owns
+// #characteristics-form so first paint and the 422 re-render render from one
+// component and cannot drift. On success the server swaps in a fresh
+// #characteristics view (OOB) plus the form; on a 422 it re-renders this form
+// with the entered values preserved.
+templ VarietyCharacteristicsForm(model VarietyCharacteristicsFormModel) {
+	<form id="characteristics-form" hx-put={ "/varieties/" + model.VarietyID } hx-target="#characteristics-form" hx-swap="outerHTML">
+		if msg := model.err(""); msg != "" {
+			<p class="error banner" role="alert">{ msg }</p>
+		}
+		@axisInput("body", "Body", model.Body)
+		@axisInput("tannin", "Tannin", model.Tannin)
+		@axisInput("acidity", "Acidity", model.Acidity)
+		@axisInput("sweetness", "Sweetness", model.Sweetness)
+		@axisInput("alcohol", "Alcohol", model.Alcohol)
+		<label>
+			Flavour notes (comma-separated)
+			<input type="text" name="notes" value={ model.Notes } placeholder="e.g. blackberry, pepper"/>
+		</label>
+		<button type="submit">Save characteristics</button>
+	</form>
+}
+
+// axisInput is one 1..5 scalar-axis field of the edit form. HTML5 min/max are
+// the courtesy first line; the domain is the authority on the rubric.
+templ axisInput(name, label, value string) {
+	<label>
+		{ label } (1–5)
+		<input type="number" name={ name } min="1" max="5" value={ value } required/>
+	</label>
 }

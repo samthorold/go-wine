@@ -23,11 +23,16 @@ type WineRepository interface {
 	SetComposition(ctx context.Context, wineID ID, c Composition) error
 }
 
-// VarietyRepository owns Varieties — global reference data, not scoped to a
-// Drinker.
+// VarietyRepository owns the Variety aggregate — the grape's identity and its
+// intrinsic Characteristics, persisted together. Global reference data, not
+// scoped to a Drinker. GetCharacteristics returns the zero bundle (IsZero) for a
+// Variety not yet seeded; SetCharacteristics replaces the stored bundle and
+// returns ErrNotFound for an unknown Variety.
 type VarietyRepository interface {
 	Get(ctx context.Context, id ID) (Variety, error)
 	List(ctx context.Context) ([]Variety, error)
+	GetCharacteristics(ctx context.Context, id ID) (Characteristics, error)
+	SetCharacteristics(ctx context.Context, id ID, c Characteristics) error
 }
 
 // TastingRepository owns Tastings. Reads are always scoped to a Drinker — the

@@ -15,6 +15,7 @@ import (
 	"go-wine/internal/adapter/web"
 	"go-wine/internal/app"
 	"go-wine/internal/domain"
+	seedpkg "go-wine/internal/seed"
 )
 
 func main() {
@@ -57,12 +58,14 @@ func main() {
 	logH := app.NewLogTastingHandler(drinkers, wines, tastings)
 	listH := app.NewListTastingsHandler(wines, tastings, companions)
 	listV := app.NewListVarietiesHandler(varieties)
+	getV := app.NewGetVarietyHandler(varieties)
+	editVC := app.NewEditCharacteristicsHandler(varieties)
 	listW := app.NewListWinesHandler(wines)
 	getW := app.NewGetWineHandler(wines, varieties)
 	editC := app.NewEditCompositionHandler(wines, varieties)
 	createD := app.NewCreateDrinkerHandler(drinkers)
 	renameD := app.NewRenameDrinkerHandler(drinkers)
-	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, listW, getW, editC, createD, renameD)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, createD, renameD)
 
 	addr := ":" + envOr("PORT", "8080")
 	log.Printf("go-wine listening on %s", addr)
@@ -106,6 +109,11 @@ func seedMemory(drinkers *memory.DrinkerRepo, wines *memory.WineRepo, varieties 
 		if v, err := domain.NewVariety(name); err == nil {
 			varieties.Save(v)
 		}
+	}
+	// Seed each grape's intrinsic Characteristics through the domain seed-merge,
+	// so confirmed values would survive a re-seed exactly as on Postgres.
+	if err := app.SeedCharacteristics(context.Background(), varieties, seedpkg.Characteristics()); err != nil {
+		log.Printf("seed characteristics (memory): %v", err)
 	}
 }
 

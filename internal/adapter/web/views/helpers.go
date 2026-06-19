@@ -111,6 +111,34 @@ type CompositionFormModel struct {
 
 func (m CompositionFormModel) err(field string) string { return m.Errors[field] }
 
+// VarietyCharacteristicsFormModel is the view model the edit-characteristics
+// form renders: the Variety being edited, the five scalar axes and the
+// flavour-note tags as entered (preserved across a failed submit), and a
+// field-to-message error map. Axes are strings so a failed submit re-renders
+// exactly what the Drinker typed; Notes is the comma-separated tag text. Errors
+// is empty on first paint; the empty-string key carries a form-level banner.
+type VarietyCharacteristicsFormModel struct {
+	VarietyID                                 string
+	VarietyName                               string
+	Body, Tannin, Acidity, Sweetness, Alcohol string
+	Notes                                     string
+	Errors                                    map[string]string
+}
+
+func (m VarietyCharacteristicsFormModel) err(field string) string { return m.Errors[field] }
+
+// axisScale renders a 1..5 axis value as filled/empty pips, the same visual
+// vocabulary as ratingStars, so the rubric reads at a glance.
+func axisScale(v int) string {
+	if v < 0 {
+		v = 0
+	}
+	if v > 5 {
+		v = 5
+	}
+	return strings.Repeat("●", v) + strings.Repeat("○", 5-v)
+}
+
 func ratingStars(r int) string {
 	if r < 0 {
 		r = 0

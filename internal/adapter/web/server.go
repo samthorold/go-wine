@@ -21,41 +21,48 @@ const drinkerCookie = "drinker"
 
 // Server holds the routes and the handlers/repos they need.
 type Server struct {
-	mux             *http.ServeMux
-	logTasting      *app.LogTastingHandler
-	listTastings    *app.ListTastingsHandler
-	listVarieties   *app.ListVarietiesHandler
-	listWines       *app.ListWinesHandler
-	getWine         *app.GetWineHandler
-	editComposition *app.EditCompositionHandler
-	createDrinker   *app.CreateDrinkerHandler
-	renameDrinker   *app.RenameDrinkerHandler
-	drinkers        domain.DrinkerRepository
-	wines           domain.WineRepository
-	varieties       domain.VarietyRepository
-	companions      domain.CompanionRepository
+	mux                 *http.ServeMux
+	logTasting          *app.LogTastingHandler
+	listTastings        *app.ListTastingsHandler
+	listVarieties       *app.ListVarietiesHandler
+	getVariety          *app.GetVarietyHandler
+	editCharacteristics *app.EditCharacteristicsHandler
+	listWines           *app.ListWinesHandler
+	getWine             *app.GetWineHandler
+	editComposition     *app.EditCompositionHandler
+	createDrinker       *app.CreateDrinkerHandler
+	renameDrinker       *app.RenameDrinkerHandler
+	drinkers            domain.DrinkerRepository
+	wines               domain.WineRepository
+	varieties           domain.VarietyRepository
+	companions          domain.CompanionRepository
 }
 
-func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.VarietyRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, listW *app.ListWinesHandler, getW *app.GetWineHandler, editC *app.EditCompositionHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler) *Server {
+func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.VarietyRepository, c domain.CompanionRepository, logH *app.LogTastingHandler, listH *app.ListTastingsHandler, listV *app.ListVarietiesHandler, getV *app.GetVarietyHandler, editVC *app.EditCharacteristicsHandler, listW *app.ListWinesHandler, getW *app.GetWineHandler, editC *app.EditCompositionHandler, createD *app.CreateDrinkerHandler, renameD *app.RenameDrinkerHandler) *Server {
 	s := &Server{
-		mux:             http.NewServeMux(),
-		logTasting:      logH,
-		listTastings:    listH,
-		listVarieties:   listV,
-		listWines:       listW,
-		getWine:         getW,
-		editComposition: editC,
-		createDrinker:   createD,
-		renameDrinker:   renameD,
-		drinkers:        d,
-		wines:           w,
-		varieties:       v,
-		companions:      c,
+		mux:                 http.NewServeMux(),
+		logTasting:          logH,
+		listTastings:        listH,
+		listVarieties:       listV,
+		getVariety:          getV,
+		editCharacteristics: editVC,
+		listWines:           listW,
+		getWine:             getW,
+		editComposition:     editC,
+		createDrinker:       createD,
+		renameDrinker:       renameD,
+		drinkers:            d,
+		wines:               w,
+		varieties:           v,
+		companions:          c,
 	}
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /tastings", s.handleTastings)
 	s.mux.HandleFunc("POST /tastings", s.handleLogTasting)
 	s.mux.HandleFunc("GET /varieties", s.handleVarieties)
+	s.mux.HandleFunc("GET /varieties/{id}", s.handleVariety)
+	s.mux.HandleFunc("GET /varieties/{id}/edit", s.handleVarietyEdit)
+	s.mux.HandleFunc("PUT /varieties/{id}", s.handleEditCharacteristics)
 	s.mux.HandleFunc("GET /wines", s.handleWines)
 	s.mux.HandleFunc("GET /wines/{id}", s.handleWine)
 	s.mux.HandleFunc("PUT /wines/{id}", s.handleEditComposition)
@@ -119,6 +126,142 @@ func (s *Server) handleVarieties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = views.VarietiesPage(dopts, varieties).Render(ctx, w)
+}
+
+// handleVariety renders a single Variety's detail page: its name, intrinsic
+// Characteristics, and the edit form. An unknown Variety is a 404.
+func (s *Server) handleVariety(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	active, err := s.activeDrinker(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dopts, err := s.drinkerOptions(ctx, active.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	id := domain.ID(r.PathValue("id"))
+	variety, err := s.getVariety.Handle(ctx, id)
+	if errors.Is(err, domain.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.VarietyDetailPage(dopts, variety, characteristicsForm(variety)).Render(ctx, w)
+}
+
+// handleVarietyEdit returns the bare edit-characteristics form fragment, prefilled
+// from the stored values. An unknown Variety is a 404.
+func (s *Server) handleVarietyEdit(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := domain.ID(r.PathValue("id"))
+	variety, err := s.getVariety.Handle(ctx, id)
+	if errors.Is(err, domain.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.VarietyCharacteristicsForm(characteristicsForm(variety)).Render(ctx, w)
+}
+
+// handleEditCharacteristics persists a hand-edit of a Variety's Characteristics,
+// marking them confirmed so a future re-seed cannot clobber them. Success swaps a
+// fresh form into #characteristics-form plus the updated #characteristics view
+// out-of-band; a validation failure re-renders the form (422) preserving the
+// entered values; an unknown Variety is a 404.
+func (s *Server) handleEditCharacteristics(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	id := domain.ID(r.PathValue("id"))
+
+	cmd := app.EditCharacteristicsCommand{
+		VarietyID: id,
+		Body:      atoiOrZero(r.FormValue("body")),
+		Tannin:    atoiOrZero(r.FormValue("tannin")),
+		Acidity:   atoiOrZero(r.FormValue("acidity")),
+		Sweetness: atoiOrZero(r.FormValue("sweetness")),
+		Alcohol:   atoiOrZero(r.FormValue("alcohol")),
+		Notes:     parseNotes(r.FormValue("notes")),
+	}
+	err := s.editCharacteristics.Handle(ctx, cmd)
+	if err == nil {
+		variety, _ := s.getVariety.Handle(ctx, id)
+		_ = views.VarietyCharacteristicsForm(characteristicsForm(variety)).Render(ctx, w)
+		_ = views.CharacteristicsViewOOB(variety).Render(ctx, w)
+		return
+	}
+	if errors.Is(err, domain.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if errors.Is(err, domain.ErrInvalidCharacteristics) {
+		model := characteristicsFormFromRequest(id, r)
+		model.Errors = map[string]string{"": "each characteristic must be a whole number between 1 and 5"}
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = views.VarietyCharacteristicsForm(model).Render(ctx, w)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+// characteristicsForm builds the edit form prefilled from a Variety's stored
+// Characteristics. Empty for an unseeded Variety.
+func characteristicsForm(v app.VarietyDetailView) views.VarietyCharacteristicsFormModel {
+	m := views.VarietyCharacteristicsFormModel{VarietyID: v.ID.String(), VarietyName: v.Name}
+	if v.HasCharacteristics {
+		m.Body = strconv.Itoa(v.Body)
+		m.Tannin = strconv.Itoa(v.Tannin)
+		m.Acidity = strconv.Itoa(v.Acidity)
+		m.Sweetness = strconv.Itoa(v.Sweetness)
+		m.Alcohol = strconv.Itoa(v.Alcohol)
+		m.Notes = strings.Join(v.Notes, ", ")
+	}
+	return m
+}
+
+// characteristicsFormFromRequest rebuilds the form from a failed submit,
+// preserving exactly what the Drinker typed.
+func characteristicsFormFromRequest(id domain.ID, r *http.Request) views.VarietyCharacteristicsFormModel {
+	return views.VarietyCharacteristicsFormModel{
+		VarietyID: id.String(),
+		Body:      r.FormValue("body"),
+		Tannin:    r.FormValue("tannin"),
+		Acidity:   r.FormValue("acidity"),
+		Sweetness: r.FormValue("sweetness"),
+		Alcohol:   r.FormValue("alcohol"),
+		Notes:     r.FormValue("notes"),
+	}
+}
+
+// atoiOrZero parses a form integer, yielding 0 (which the domain rejects) for a
+// blank or non-numeric value.
+func atoiOrZero(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
+}
+
+// parseNotes splits the comma-separated flavour-note field into trimmed tags,
+// dropping blanks.
+func parseNotes(s string) []string {
+	fields := strings.Split(s, ",")
+	out := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if n := strings.TrimSpace(f); n != "" {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 func (s *Server) handleWines(w http.ResponseWriter, r *http.Request) {

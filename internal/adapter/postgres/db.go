@@ -13,7 +13,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"go-wine/internal/app"
 	"go-wine/internal/domain"
+	seedpkg "go-wine/internal/seed"
 )
 
 // Connect opens a pool and waits for the database to accept connections — useful
@@ -103,6 +105,15 @@ func Seed(ctx context.Context, pool *pgxpool.Pool) error {
 				return err
 			}
 		}
+	}
+
+	// Seed each Variety's intrinsic Characteristics through the domain seed-merge.
+	// The grape rows themselves are created by migration 0002; here we merge the
+	// rubric over whatever is stored, so a re-seed never clobbers a confirmed
+	// value. Runs every startup (it is idempotent and non-clobbering), so a newly
+	// added grape or a corrected rubric flows through to unconfirmed grapes.
+	if err := app.SeedCharacteristics(ctx, NewVarietyRepo(pool), seedpkg.Characteristics()); err != nil {
+		return err
 	}
 	return nil
 }

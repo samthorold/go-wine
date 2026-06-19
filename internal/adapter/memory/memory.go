@@ -98,20 +98,48 @@ func (r *WineRepo) List(_ context.Context) ([]domain.Wine, error) {
 	return out, nil
 }
 
-// VarietyRepo is an in-memory domain.VarietyRepository.
+// VarietyRepo is an in-memory domain.VarietyRepository. It owns the Variety
+// aggregate: the grape's identity plus its intrinsic Characteristics, held in a
+// parallel map keyed by Variety ID so the Variety struct stays a plain
+// comparable value.
 type VarietyRepo struct {
-	mu   sync.RWMutex
-	data map[domain.ID]domain.Variety
+	mu    sync.RWMutex
+	data  map[domain.ID]domain.Variety
+	chars map[domain.ID]domain.Characteristics
 }
 
 func NewVarietyRepo() *VarietyRepo {
-	return &VarietyRepo{data: make(map[domain.ID]domain.Variety)}
+	return &VarietyRepo{
+		data:  make(map[domain.ID]domain.Variety),
+		chars: make(map[domain.ID]domain.Characteristics),
+	}
 }
 
 func (r *VarietyRepo) Save(v domain.Variety) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.data[v.ID] = v
+}
+
+// GetCharacteristics returns the stored bundle, or the zero bundle (IsZero) for
+// a Variety not yet seeded — mirroring the Postgres adapter's absent-row case.
+func (r *VarietyRepo) GetCharacteristics(_ context.Context, id domain.ID) (domain.Characteristics, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.chars[id], nil
+}
+
+// SetCharacteristics replaces the stored Characteristics for a Variety, keeping
+// the grape and its characteristics together in one aggregate. An unknown
+// Variety is ErrNotFound.
+func (r *VarietyRepo) SetCharacteristics(_ context.Context, id domain.ID, c domain.Characteristics) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.data[id]; !ok {
+		return domain.ErrNotFound
+	}
+	r.chars[id] = c
+	return nil
 }
 
 func (r *VarietyRepo) Get(_ context.Context, id domain.ID) (domain.Variety, error) {

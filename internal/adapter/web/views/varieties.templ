@@ -1,14 +1,42 @@
 package views
 
-import "go-wine/internal/app"
+import (
+	"strconv"
 
-// VarietiesPage is the browse view for the global set of Varieties (grapes).
-// A Drinker can navigate to and bookmark it, so it is a page: Layout + content.
-templ VarietiesPage(drinkers []DrinkerOption, varieties []app.VarietyView) {
+	"go-wine/internal/app"
+)
+
+// VarietiesPage is the browse view for the global set of Varieties (grapes),
+// led by the active Drinker's Taste profile — the enjoyed-grape set. A Drinker
+// can navigate to and bookmark it, so it is a page: Layout + content.
+templ VarietiesPage(drinkers []DrinkerOption, varieties []app.VarietyView, profile app.TasteProfileView) {
 	@Layout("Varieties", drinkers) {
 		<h2>Varieties</h2>
+		@TasteProfileView(profile)
 		@VarietyList(varieties)
 	}
+}
+
+// TasteProfileView renders the active Drinker's Taste profile: the SET of
+// enjoyed grapes, each weighted by enjoyment. It is shown as a list, never
+// collapsed to a single average — a multimodal palate stays several grapes, the
+// property Discovery's proximity-to-a-set search depends on.
+templ TasteProfileView(profile app.TasteProfileView) {
+	<div id="taste-profile">
+		<h3>Your taste profile</h3>
+		if len(profile.Enjoyed) == 0 {
+			<p class="empty">No enjoyed grapes yet — log some tastings you loved.</p>
+		} else {
+			<ul>
+				for _, e := range profile.Enjoyed {
+					<li>
+						<a href={ templ.SafeURL("/varieties/" + e.VarietyID.String()) }>{ e.Name }</a>
+						<span class="stars">{ ratingStars(int(e.Weight + 0.5)) }</span>
+					</li>
+				}
+			</ul>
+		}
+	</div>
 }
 
 // VarietyList renders the #varieties region.
@@ -30,14 +58,32 @@ templ VarietyList(varieties []app.VarietyView) {
 
 // VarietyDetailPage is the view for a single Variety: its name, its intrinsic
 // Characteristics, and the form to edit them. Bookmarkable, so it is a page.
-templ VarietyDetailPage(drinkers []DrinkerOption, variety app.VarietyDetailView, form VarietyCharacteristicsFormModel) {
+templ VarietyDetailPage(drinkers []DrinkerOption, variety app.VarietyDetailView, form VarietyCharacteristicsFormModel, pref app.VarietyPreferenceView) {
 	@Layout(variety.Name, drinkers) {
 		<p><a href="/varieties">← Varieties</a></p>
 		<h2>{ variety.Name }</h2>
+		@VarietyPreferenceView(pref)
 		@CharacteristicsView(variety)
 		<h3>Edit characteristics</h3>
 		@VarietyCharacteristicsForm(form)
 	}
+}
+
+// VarietyPreferenceView renders the active Drinker's derived preference for the
+// grape — "do I like this Variety?" — attributed through the Compositions of
+// the wines drunk. A Variety in no drunk wine reads as not-yet-tasted.
+templ VarietyPreferenceView(pref app.VarietyPreferenceView) {
+	<div id="variety-preference">
+		<h3>Your preference</h3>
+		if !pref.Tasted {
+			<p class="empty">Not yet tasted — no wine you've logged contains this grape.</p>
+		} else {
+			<p>
+				<span class="stars">{ ratingStars(int(pref.Preference + 0.5)) }</span>
+				{ strconv.FormatFloat(pref.Preference, 'g', 3, 64) } (derived through the wines you've drunk)
+			</p>
+		}
+	</div>
 }
 
 // CharacteristicsView renders the #characteristics region for first paint.

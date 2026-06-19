@@ -38,7 +38,8 @@ func newVarietyTestServer(t *testing.T) (*web.Server, *memory.VarietyRepo) {
 	styleC := app.NewResolveStyleCompositionHandler(varieties, nil)
 	createD := app.NewCreateDrinkerHandler(drinkers)
 	renameD := app.NewRenameDrinkerHandler(drinkers)
-	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD)
+	prefs := app.NewPreferencesHandler(wines, varieties, tastings)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD, prefs)
 	return srv, varieties
 }
 

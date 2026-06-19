@@ -49,7 +49,8 @@ func newWineServer(t *testing.T, style string, grapes ...string) (*web.Server, d
 	styleC := app.NewResolveStyleCompositionHandler(varieties, seed.StyleCompositions())
 	createD := app.NewCreateDrinkerHandler(drinkers)
 	renameD := app.NewRenameDrinkerHandler(drinkers)
-	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD)
+	prefs := app.NewPreferencesHandler(wines, varieties, tastings)
+	srv := web.NewServer(drinkers, wines, varieties, companions, logH, listH, listV, getV, editVC, listW, getW, editC, styleC, createD, renameD, prefs)
 	return srv, w, wines, byName
 }
 

@@ -101,7 +101,7 @@ func TestLikeVariety_BlendAttributesByProportion(t *testing.T) {
 	grenache := NewID()
 	syrah := NewID()
 	mourvedre := NewID()
-	gsm := NewID()      // 50 Grenache / 30 Syrah / 20 Mourvèdre, rated 5
+	gsm := NewID()       // 50 Grenache / 30 Syrah / 20 Mourvèdre, rated 5
 	soloSyrah := NewID() // 100 Syrah, rated 1
 	comps := map[ID]Composition{
 		gsm:       {Parts: []CompositionPart{part(grenache, 50), part(syrah, 30), part(mourvedre, 20)}},
@@ -172,8 +172,8 @@ func TestTasteProfile_IncludesEnjoyedVarietiesAboveThreshold(t *testing.T) {
 	drinker := NewID()
 	shiraz := NewID()
 	pinot := NewID()
-	bigRed := NewID()  // 100 Shiraz, loved (5)
-	mehRed := NewID()  // 100 Pinot, disliked (2)
+	bigRed := NewID() // 100 Shiraz, loved (5)
+	mehRed := NewID() // 100 Pinot, disliked (2)
 	comps := map[ID]Composition{
 		bigRed: {Parts: []CompositionPart{part(shiraz, 100)}},
 		mehRed: {Parts: []CompositionPart{part(pinot, 100)}},

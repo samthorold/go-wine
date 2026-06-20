@@ -49,6 +49,11 @@ templ LogForm(model LogFormModel) {
 		<label>
 			Wine
 			<select name="wine_id" required>
+				// A disabled, empty-valued placeholder selected by default: Wine is
+				// the one genuinely required field, so a blank form must not
+				// pre-select a real Wine. Disabled + empty value makes HTML5
+				// `required` block submit until a real Wine is chosen. See issue #40.
+				<option value="" disabled selected?={ model.WineID == "" }>Choose a wine…</option>
 				for _, w := range model.Wines {
 					<option value={ w.ID } selected?={ w.ID == model.WineID }>{ w.Label }</option>
 				}

@@ -64,6 +64,19 @@ templ Layout(title string, current Section, drinkers []DrinkerOption) {
 					--pico-form-element-active-border-color: #7aa2f7;
 					--pico-form-element-focus-color: rgba(122, 162, 247, 0.5);
 				}
+				/* Active nav item reads as "you are here": Pico's native
+				   aria-current styling renders the current link white, which against
+				   the dark chrome looks greyed-out/disabled rather than current. We
+				   override it (scoped to nav links via aria-current, so no other
+				   aria-current usage is touched) to keep Pico's primary/link blue and
+				   add a bottom accent bar so the current item is unambiguous while
+				   inactive links keep their normal blue link colour and stay clearly
+				   clickable. See issue #43 and look-and-feel.md. */
+				nav a[aria-current="page"] {
+					color: var(--pico-primary);
+					text-decoration: none;
+					border-bottom: 2px solid var(--pico-primary);
+				}
 				/* Domain accents only — everything else is Pico's classless defaults. */
 				.rating { color: #d9534f; letter-spacing: 2px; }
 				/* The Rating entered as stars: a CSS-only radio group sharing the

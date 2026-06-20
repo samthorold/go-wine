@@ -1,6 +1,20 @@
 package views
 
-templ Layout(title string, drinkers []DrinkerOption) {
+// Section identifies which top-level nav noun a page belongs to, so Layout can
+// mark the matching link with aria-current="page" (which Pico styles natively).
+// A detail page belongs to its parent section (a Wine to Wines); a page with no
+// nav link (Drinkers) passes the empty SectionNone so no link is marked.
+type Section string
+
+const (
+	SectionNone      Section = ""
+	SectionTastings  Section = "tastings"
+	SectionWines     Section = "wines"
+	SectionVarieties Section = "varieties"
+	SectionDiscovery Section = "discovery"
+)
+
+templ Layout(title string, current Section, drinkers []DrinkerOption) {
 	<!DOCTYPE html>
 	<html lang="en" data-theme="dark">
 		<head>
@@ -48,10 +62,34 @@ templ Layout(title string, drinkers []DrinkerOption) {
 				<nav>
 					<ul><li><strong>🍷 go-wine</strong></li></ul>
 					<ul>
-						<li><a href="/tastings">Tastings</a></li>
-						<li><a href="/wines">Wines</a></li>
-						<li><a href="/varieties">Varieties</a></li>
-						<li><a href="/discovery">Discover</a></li>
+						<li>
+							if current == SectionTastings {
+								<a href="/tastings" aria-current="page">Tastings</a>
+							} else {
+								<a href="/tastings">Tastings</a>
+							}
+						</li>
+						<li>
+							if current == SectionWines {
+								<a href="/wines" aria-current="page">Wines</a>
+							} else {
+								<a href="/wines">Wines</a>
+							}
+						</li>
+						<li>
+							if current == SectionVarieties {
+								<a href="/varieties" aria-current="page">Varieties</a>
+							} else {
+								<a href="/varieties">Varieties</a>
+							}
+						</li>
+						<li>
+							if current == SectionDiscovery {
+								<a href="/discovery" aria-current="page">Discover</a>
+							} else {
+								<a href="/discovery">Discover</a>
+							}
+						</li>
 					</ul>
 					<ul><li>@DrinkerSwitcher(DrinkerSwitcherModel{Drinkers: drinkers})</li></ul>
 				</nav>

@@ -10,7 +10,7 @@ import (
 // led by the active Drinker's Taste profile — the enjoyed-grape set. A Drinker
 // can navigate to and bookmark it, so it is a page: Layout + content.
 templ VarietiesPage(drinkers []DrinkerOption, varieties []app.VarietyView, profile app.TasteProfileView) {
-	@Layout("Varieties", drinkers) {
+	@Layout("Varieties", SectionVarieties, drinkers) {
 		<h2>Varieties</h2>
 		@TasteProfileView(profile)
 		@VarietyList(varieties)
@@ -59,7 +59,7 @@ templ VarietyList(varieties []app.VarietyView) {
 // VarietyDetailPage is the view for a single Variety: its name, its intrinsic
 // Characteristics, and the form to edit them. Bookmarkable, so it is a page.
 templ VarietyDetailPage(drinkers []DrinkerOption, variety app.VarietyDetailView, form VarietyCharacteristicsFormModel, pref app.VarietyPreferenceView) {
-	@Layout(variety.Name, drinkers) {
+	@Layout(variety.Name, SectionVarieties, drinkers) {
 		<p><a href="/varieties">← Varieties</a></p>
 		<h2>{ variety.Name }</h2>
 		@VarietyPreferenceView(pref)

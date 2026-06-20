@@ -8,7 +8,7 @@ import (
 )
 
 templ TastingsPage(drinkers []DrinkerOption, model LogFormModel, tastings []app.TastingView) {
-	@Layout("Tastings", drinkers) {
+	@Layout("Tastings", SectionTastings, drinkers) {
 		<h2>Log a tasting</h2>
 		@LogForm(model)
 		<h2>Your tastings</h2>
@@ -59,7 +59,8 @@ templ LogForm(model LogFormModel) {
 		</label>
 		<label>
 			Vintage
-			<input type="number" name="vintage" placeholder="2019" min="1900" max="2100" value={ model.Vintage }/>
+			<input type="number" name="vintage" placeholder="e.g. 2019" min="1900" max="2100" value={ model.Vintage }/>
+			<small>The year on the label — leave blank if unknown.</small>
 			if msg := model.err("vintage"); msg != "" {
 				<span class="error">{ msg }</span>
 			}

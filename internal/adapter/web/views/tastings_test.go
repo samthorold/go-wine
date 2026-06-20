@@ -218,6 +218,38 @@ func TestLogForm_ConstrainedToReadableMeasure(t *testing.T) {
 	}
 }
 
+func TestLogForm_VintageReadsAsHintNotValue(t *testing.T) {
+	// The Vintage placeholder must not read like a pre-filled value (a bare year
+	// like "2019"); an empty field should be unambiguous. A <small> helper makes
+	// the cue clearly guidance. See issue #32 / look-and-feel.md.
+	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
+	html := render(t, LogForm(model))
+
+	if strings.Contains(html, `placeholder="2019"`) {
+		t.Errorf("Vintage placeholder must not read as a real value (\"2019\"); got:\n%s", html)
+	}
+	if !strings.Contains(html, "<small>") {
+		t.Errorf("Vintage field should carry a <small> hint so an empty field is unambiguous; got:\n%s", html)
+	}
+}
+
+func TestTastingsPage_MarksTastingsNavActive(t *testing.T) {
+	// Active-nav state: the nav link for the current page carries
+	// aria-current="page" so Pico styles it, and no other link does.
+	drinkers := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
+	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
+	html := render(t, TastingsPage(drinkers, model, nil))
+
+	if !strings.Contains(html, `<a href="/tastings" aria-current="page">Tastings</a>`) {
+		t.Errorf("Tastings nav link should carry aria-current=\"page\"; got:\n%s", html)
+	}
+	if strings.Contains(html, `<a href="/wines" aria-current`) ||
+		strings.Contains(html, `<a href="/varieties" aria-current`) ||
+		strings.Contains(html, `<a href="/discovery" aria-current`) {
+		t.Errorf("only the current page's nav link should be active; got:\n%s", html)
+	}
+}
+
 func TestTastingsPage_NavStaysFullWidth(t *testing.T) {
 	// The chrome/nav must NOT be constrained to the content measure — only the
 	// content column is. See look-and-feel.md.

@@ -11,7 +11,7 @@ import (
 // enjoyed-grape set, each annotated with the enjoyed grape(s) that justify it. A
 // Drinker can navigate to and bookmark it, so it is a page: Layout + content.
 templ DiscoveryPage(drinkers []DrinkerOption, recs []app.RecommendationView) {
-	@Layout("Discovery", drinkers) {
+	@Layout("Discovery", SectionDiscovery, drinkers) {
 		<h2>Discover</h2>
 		<p>Grapes you haven't logged yet, nearest to the ones you've loved.</p>
 		@RecommendationList(recs)

@@ -9,7 +9,7 @@ import (
 // WinesPage is the browse view for the global set of Wines. A Drinker can
 // navigate to and bookmark it, so it is a page: Layout + content.
 templ WinesPage(drinkers []DrinkerOption, wines []app.WineView) {
-	@Layout("Wines", drinkers) {
+	@Layout("Wines", SectionWines, drinkers) {
 		<h2>Wines</h2>
 		@WineList(wines)
 	}
@@ -42,7 +42,7 @@ templ WineList(wines []app.WineView) {
 // Drinker's verdict ("do I like this Wine?"), its Composition, and the form to
 // edit the Composition. Bookmarkable, so it is a page.
 templ WineDetailPage(drinkers []DrinkerOption, wine app.WineDetailView, form CompositionFormModel, verdict app.WineVerdictView) {
-	@Layout(wine.Label, drinkers) {
+	@Layout(wine.Label, SectionWines, drinkers) {
 		<p><a href="/wines">← Wines</a></p>
 		<h2>{ wine.Label }</h2>
 		if wine.Style != "" {

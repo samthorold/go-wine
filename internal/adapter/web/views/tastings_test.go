@@ -127,6 +127,38 @@ func TestTastingsPage_HasExactlyOnePrimaryButton(t *testing.T) {
 	}
 }
 
+func TestLogForm_ConstrainedToReadableMeasure(t *testing.T) {
+	// Readable measure over full bleed: the form/content region carries the
+	// .measure content-column class so it does not stretch to the full
+	// container width. See look-and-feel.md.
+	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
+	html := render(t, LogForm(model))
+
+	form := html[strings.Index(html, "<form"):]
+	if i := strings.Index(form, ">"); i >= 0 {
+		form = form[:i]
+	}
+	if !strings.Contains(form, "measure") {
+		t.Errorf("log form should carry the .measure content-column class; got open tag:\n%s", form)
+	}
+}
+
+func TestTastingsPage_NavStaysFullWidth(t *testing.T) {
+	// The chrome/nav must NOT be constrained to the content measure — only the
+	// content column is. See look-and-feel.md.
+	drinkers := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
+	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
+	html := render(t, TastingsPage(drinkers, model, nil))
+
+	nav := html[strings.Index(html, "<nav"):]
+	if i := strings.Index(nav, ">"); i >= 0 {
+		nav = nav[:i]
+	}
+	if strings.Contains(nav, "measure") {
+		t.Errorf("nav/chrome must stay full-width (no .measure); got open tag:\n%s", nav)
+	}
+}
+
 func TestTastingRow_ShowsCompanions(t *testing.T) {
 	view := app.TastingView{
 		WineLabel:  "Penfolds — Bin 28 Shiraz",

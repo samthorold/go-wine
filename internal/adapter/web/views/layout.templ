@@ -49,6 +49,21 @@ templ Layout(title string, current Section, drinkers []DrinkerOption) {
 					--pico-muted-color: #b9c0cc;
 					--pico-form-element-placeholder-color: #9aa3b2;
 				}
+				/* Form-control affordance: Pico's dark resting border (#2a3140) sits
+				   almost on top of the near-black background (#13161e), so inputs,
+				   selects and textareas read as banners rather than editable controls
+				   — the empty Vintage field especially. Lift the three Pico
+				   form-element tokens once here and every form benefits:
+				   (a) resting border #3f4756 is clearly visible against the bg;
+				   (b) the focused border takes a blue accent #7aa2f7; and (c) the
+				   focus RING (a box-shadow Pico drives off this token) is raised to a
+				   half-opaque blue so keyboard and pointer focus are unmistakable.
+				   See issue #42 and look-and-feel.md. */
+				[data-theme="dark"] {
+					--pico-form-element-border-color: #3f4756;
+					--pico-form-element-active-border-color: #7aa2f7;
+					--pico-form-element-focus-color: rgba(122, 162, 247, 0.5);
+				}
 				/* Domain accents only — everything else is Pico's classless defaults. */
 				.rating { color: #d9534f; letter-spacing: 2px; }
 				/* The Rating entered as stars: a CSS-only radio group sharing the

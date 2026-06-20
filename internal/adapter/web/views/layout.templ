@@ -101,9 +101,14 @@ templ Layout(title string, current Section, drinkers []DrinkerOption) {
 					color: var(--pico-muted-color); text-decoration: underline; }
 				.rating-input label.rating-clear:hover { color: var(--pico-color); }
 				/* Readable measure over full bleed: the shell (<main class="container">)
-				   stays wide for the nav/chrome, but forms and prose sit in a narrower
-				   content column so a <select>/<textarea> is a short line to scan and a
-				   short pointer journey. See look-and-feel.md. */
+				   stays wide for the nav/chrome, but ALL page content sits in a
+				   narrower column so a <select>/<textarea> is a short line to scan and
+				   a short pointer journey. Applied once to the shared content wrapper
+				   in Layout, so every page benefits — not just the tasting form. It is
+				   a max-width only (no fixed width), so on narrow/mobile viewports the
+				   column still fills the available width and stays fluid. 45rem (~720px)
+				   keeps a comfortable line length without feeling cramped.
+				   See issue #45 and look-and-feel.md. */
 				.measure { max-width: 45rem; }
 			</style>
 		</head>
@@ -143,7 +148,9 @@ templ Layout(title string, current Section, drinkers []DrinkerOption) {
 					</ul>
 					<ul><li>@DrinkerSwitcher(DrinkerSwitcherModel{Drinkers: drinkers})</li></ul>
 				</nav>
-				{ children... }
+				<div class="measure">
+					{ children... }
+				</div>
 			</main>
 		</body>
 	</html>

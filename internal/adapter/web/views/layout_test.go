@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/a-h/templ"
 )
 
 // renderLayout renders the Layout shell (with no children) to a string.
@@ -68,6 +70,40 @@ func TestLayoutDefinesReadableMeasure(t *testing.T) {
 	}
 	if !strings.Contains(html, "max-width") {
 		t.Errorf(".measure should constrain width via max-width; got:\n%s", html)
+	}
+}
+
+func TestLayoutWrapsContentInSharedMeasure(t *testing.T) {
+	// Readable measure over full bleed, applied once in the shell so EVERY page
+	// benefits — not just the tasting form. Layout renders its children inside a
+	// shared content-column wrapper carrying .measure, while the nav/chrome stays
+	// outside it (full-width within the container). See issue #45 / look-and-feel.md.
+	var sb strings.Builder
+	child := templ.Raw(`<p id="sentinel">content</p>`)
+	ctx := templ.WithChildren(context.Background(), child)
+	if err := Layout("T", SectionTastings, nil).Render(ctx, &sb); err != nil {
+		t.Fatalf("rendering Layout: %v", err)
+	}
+	html := sb.String()
+
+	// The shared wrapper element carries the measure class and contains the page
+	// content. (Look for the class attribute, not the style-block rule mention.)
+	i := strings.Index(html, `class="measure"`)
+	if i < 0 {
+		t.Fatalf("Layout should wrap content in an element with class=\"measure\"; got:\n%s", html)
+	}
+	if !strings.Contains(html[i:], `id="sentinel"`) {
+		t.Errorf("page content should sit inside the .measure wrapper; got:\n%s", html)
+	}
+
+	// The nav/chrome must stay OUTSIDE the measure wrapper so it keeps the wide
+	// container width — the content column is narrower than the chrome.
+	navIdx := strings.Index(html, "<nav")
+	if navIdx < 0 {
+		t.Fatalf("Layout should render a nav; got:\n%s", html)
+	}
+	if navIdx > i {
+		t.Errorf("nav/chrome must precede (sit outside) the .measure content column; got:\n%s", html)
 	}
 }
 

@@ -58,15 +58,15 @@ type CompanionOption struct {
 // failed submit), and a field-to-message error map. Errors is empty on first
 // paint. The empty-string key carries a form-level (non-field) banner.
 type LogFormModel struct {
-	Wines         []WineOption
-	Companions    []CompanionOption
-	WineID        string
-	Vintage       string
-	Rating        string
-	Note          string
-	CompanionIDs  []string // existing Companions selected (preserved on failed submit)
-	NewCompanions string   // free-text new names entered (comma/newline separated)
-	Errors        map[string]string
+	Wines        []WineOption
+	Companions   []CompanionOption
+	WineID       string
+	Vintage      string
+	Rating       string
+	Note         string
+	CompanionIDs []string // existing Companions selected (preserved across an add or a failed submit)
+	NewCompanion string   // the name typed into the "+ Add companion" control (preserved across a failed add)
+	Errors       map[string]string
 }
 
 func (m LogFormModel) err(field string) string { return m.Errors[field] }

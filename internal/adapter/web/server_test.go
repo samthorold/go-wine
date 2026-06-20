@@ -149,7 +149,103 @@ func TestLogTasting_SuccessSwapsFormAndOOBList(t *testing.T) {
 	}
 }
 
-func TestLogTasting_PicksExistingAndAddsNewCompanions(t *testing.T) {
+func postAddCompanion(t *testing.T, srv *web.Server, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/tastings/companions", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestAddCompanion_PersistsInZoneAndReturnsCheckedRegion(t *testing.T) {
+	// The "+ Add companion" control is its own mutation: it creates a Companion
+	// in the active Drinker's personal zone and returns the re-rendered
+	// #companions region (a bare fragment, no Layout) with the new Companion
+	// present AND ticked, so the Drinker can immediately log it. See issue #44.
+	srv, d, _, companions := newTestServerWithCompanions(t)
+
+	rec := postAddCompanion(t, srv, url.Values{"new_companion": {"Jo"}})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+
+	// A bare fragment that owns #companions, not a full page.
+	if !strings.Contains(body, `id="companions"`) {
+		t.Errorf("add should return the #companions region; got:\n%s", body)
+	}
+	if strings.Contains(body, "<html") || strings.Contains(body, `id="log-form"`) {
+		t.Errorf("add must return a bare fragment, not a page/form; got:\n%s", body)
+	}
+
+	// The new Companion is persisted in the active Drinker's zone.
+	cs, err := companions.ListByDrinker(context.Background(), d.ID)
+	if err != nil {
+		t.Fatalf("list companions: %v", err)
+	}
+	if len(cs) != 1 || cs[0].Name != "Jo" {
+		t.Fatalf("expected Jo persisted in the Drinker's zone, got %+v", cs)
+	}
+
+	// The new Companion is rendered already ticked so it is selected for the
+	// in-progress tasting without a second click.
+	want := `value="` + cs[0].ID.String() + `" checked`
+	if !strings.Contains(body, "Jo") || !strings.Contains(body, want) {
+		t.Errorf("the new companion should be present and checked; got:\n%s", body)
+	}
+}
+
+func TestAddCompanion_PreservesPreviouslyTickedCompanions(t *testing.T) {
+	// Adding a Companion must not wipe the boxes the Drinker had already ticked:
+	// the add includes the ticked ids and re-renders them still checked. See #44.
+	srv, d, _, companions := newTestServerWithCompanions(t)
+
+	alex, _ := domain.NewCompanion(d.ID, "Alex")
+	if err := companions.Add(context.Background(), alex); err != nil {
+		t.Fatalf("seed companion: %v", err)
+	}
+
+	rec := postAddCompanion(t, srv, url.Values{
+		"new_companion": {"Jo"},
+		"companion_id":  {alex.ID.String()},
+	})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Alex") || !strings.Contains(body, "Jo") {
+		t.Errorf("region should show both the existing and the new companion; got:\n%s", body)
+	}
+	if !strings.Contains(body, `value="`+alex.ID.String()+`" checked`) {
+		t.Errorf("the previously-ticked companion should stay checked; got:\n%s", body)
+	}
+}
+
+func TestAddCompanion_BlankNameReRendersRegionWithoutCreating(t *testing.T) {
+	// A blank name is not a Companion: the domain rejects it. The region
+	// re-renders (so the Drinker stays put) and nothing is persisted. See #44.
+	srv, d, _, companions := newTestServerWithCompanions(t)
+
+	rec := postAddCompanion(t, srv, url.Values{"new_companion": {"   "}})
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="companions"`) {
+		t.Errorf("blank add should still re-render the region; got:\n%s", body)
+	}
+	cs, _ := companions.ListByDrinker(context.Background(), d.ID)
+	if len(cs) != 0 {
+		t.Fatalf("a blank name must not be persisted; got %+v", cs)
+	}
+}
+
+func TestLogTasting_AttachesTickedCompanions(t *testing.T) {
+	// Logging a tasting attaches the Companions the Drinker ticked (added up
+	// front via the add control), each validated to belong to the active
+	// Drinker's zone. The free-text-at-submit path is retired in favour of the
+	// explicit add — see capturing-tastings.md and issue #44.
 	srv, d, w, companions := newTestServerWithCompanions(t)
 
 	alex, _ := domain.NewCompanion(d.ID, "Alex")
@@ -158,31 +254,17 @@ func TestLogTasting_PicksExistingAndAddsNewCompanions(t *testing.T) {
 	}
 
 	rec := postTasting(t, srv, url.Values{
-		"wine_id":        {w.ID.String()},
-		"rating":         {"4"},
-		"companion_id":   {alex.ID.String()},
-		"new_companions": {"Jo"},
+		"wine_id":      {w.ID.String()},
+		"rating":       {"4"},
+		"companion_id": {alex.ID.String()},
 	})
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Alex") || !strings.Contains(body, "Jo") {
-		t.Errorf("OOB list should show both the picked and the new companion; got:\n%s", body)
-	}
-
-	// The new Companion is persisted in the Drinker's personal zone.
-	cs, err := companions.ListByDrinker(context.Background(), d.ID)
-	if err != nil {
-		t.Fatalf("list companions: %v", err)
-	}
-	var names []string
-	for _, c := range cs {
-		names = append(names, c.Name)
-	}
-	if len(cs) != 2 {
-		t.Fatalf("expected Alex + Jo persisted, got %v", names)
+	if !strings.Contains(body, "Alex") {
+		t.Errorf("OOB list should show the attached companion; got:\n%s", body)
 	}
 }
 

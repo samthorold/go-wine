@@ -384,21 +384,58 @@ func TestTastingRow_ShowsCompanions(t *testing.T) {
 	}
 }
 
-func TestLogForm_OffersExistingCompanionsAndNewInput(t *testing.T) {
+func TestCompanions_OwnsRegionAndOffersExistingPlusAddControl(t *testing.T) {
+	// The Companions region is its own component owning #companions, so first
+	// paint and the add-Companion re-render render from one source and cannot
+	// drift. It offers existing Companions to tick, plus a clearly-styled
+	// "+ Add companion" control that posts to the add sub-resource with an
+	// explicit target/swap (never relying on htmx defaults). See issue #44.
+	model := LogFormModel{
+		Companions: []CompanionOption{{ID: "c1", Name: "Alex"}, {ID: "c2", Name: "Jo"}},
+	}
+	html := render(t, Companions(model))
+
+	if !strings.Contains(html, `id="companions"`) {
+		t.Errorf("Companions should own the #companions region; got:\n%s", html)
+	}
+	if !strings.Contains(html, "Alex") || !strings.Contains(html, "Jo") {
+		t.Errorf("region should offer existing companions to pick; got:\n%s", html)
+	}
+	if !strings.Contains(html, `name="companion_id"`) {
+		t.Errorf("region should let you pick existing companions by id; got:\n%s", html)
+	}
+	// The add control is an explicit-swap POST onto the region itself.
+	if !strings.Contains(html, `hx-post="/tastings/companions"`) {
+		t.Errorf("add control should post to the add sub-resource; got:\n%s", html)
+	}
+	if !strings.Contains(html, `hx-target="#companions"`) {
+		t.Errorf("add control should target #companions explicitly; got:\n%s", html)
+	}
+	if !strings.Contains(html, `hx-swap="outerHTML"`) {
+		t.Errorf("add control should set hx-swap explicitly; got:\n%s", html)
+	}
+	if !strings.Contains(html, `name="new_companion"`) {
+		t.Errorf("add control should carry a name field for the new companion; got:\n%s", html)
+	}
+	// The control reads as a control (a button), not bare "Add new" text.
+	if !strings.Contains(html, "Add companion") {
+		t.Errorf("add control should be labelled; got:\n%s", html)
+	}
+}
+
+// LogForm embeds the Companions region so the picker is present on first paint.
+func TestLogForm_EmbedsCompanionsRegion(t *testing.T) {
 	model := LogFormModel{
 		Wines:      []WineOption{{ID: "w1", Label: "Penfolds — Bin 28 Shiraz"}},
-		Companions: []CompanionOption{{ID: "c1", Name: "Alex"}, {ID: "c2", Name: "Jo"}},
+		Companions: []CompanionOption{{ID: "c1", Name: "Alex"}},
 	}
 	html := render(t, LogForm(model))
 
-	if !strings.Contains(html, "Alex") || !strings.Contains(html, "Jo") {
-		t.Errorf("form should offer existing companions to pick; got:\n%s", html)
+	if !strings.Contains(html, `id="companions"`) {
+		t.Errorf("log form should embed the #companions region; got:\n%s", html)
 	}
-	if !strings.Contains(html, `name="companion_id"`) {
-		t.Errorf("form should let you pick existing companions by id; got:\n%s", html)
-	}
-	if !strings.Contains(html, `name="new_companions"`) {
-		t.Errorf("form should let you add new companion names; got:\n%s", html)
+	if !strings.Contains(html, "Alex") {
+		t.Errorf("embedded region should render existing companions; got:\n%s", html)
 	}
 }
 

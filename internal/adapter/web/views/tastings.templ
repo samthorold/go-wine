@@ -92,23 +92,46 @@ templ LogForm(model LogFormModel) {
 			Note
 			<textarea name="note" rows="2" placeholder="cold night, lamb stew, cosy...">{ model.Note }</textarea>
 		</label>
-		<fieldset>
-			<legend>Companions</legend>
-			if len(model.Companions) > 0 {
-				for _, c := range model.Companions {
-					<label class="companion">
-						<input type="checkbox" name="companion_id" value={ c.ID } checked?={ model.companionSelected(c.ID) }/>
-						{ c.Name }
-					</label>
-				}
-			}
-			<label>
-				Add new
-				<input type="text" name="new_companions" placeholder="Alex, Jo" value={ model.NewCompanions }/>
-			</label>
-		</fieldset>
+		@Companions(model)
 		<button type="submit">Log tasting</button>
 	</form>
+}
+
+// Companions renders the #companions region: the existing Companions to tick
+// plus the "+ Add companion" control. It owns its id so first paint (embedded in
+// LogForm) and the add-Companion re-render render from one component and cannot
+// drift — see CLAUDE.md "a swap target owns its id ... rendered by one
+// component". The add control is its own mutation against this region only: an
+// explicit hx-post/hx-target/hx-swap that re-renders just #companions, so the
+// in-progress Wine/rating/note the Drinker has entered is left untouched. It
+// includes the ticked boxes so a newly-added Companion never wipes a prior pick.
+// See issue #44.
+templ Companions(model LogFormModel) {
+	<fieldset id="companions">
+		<legend>Companions</legend>
+		if len(model.Companions) > 0 {
+			for _, c := range model.Companions {
+				<label class="companion">
+					<input type="checkbox" name="companion_id" value={ c.ID } checked?={ model.companionSelected(c.ID) }/>
+					{ c.Name }
+				</label>
+			}
+		}
+		<div role="group">
+			<input type="text" name="new_companion" placeholder="Add someone — e.g. Alex" aria-label="New companion name" value={ model.NewCompanion }/>
+			<button
+				type="button"
+				class="secondary"
+				hx-post="/tastings/companions"
+				hx-target="#companions"
+				hx-swap="outerHTML"
+				hx-include="#companions"
+			>+ Add companion</button>
+		</div>
+		if msg := model.err("companion"); msg != "" {
+			<span class="error">{ msg }</span>
+		}
+	</fieldset>
 }
 
 templ TastingRow(t app.TastingView) {

@@ -144,6 +144,41 @@ func TestLayoutRaisesTextContrastForAA(t *testing.T) {
 	}
 }
 
+func TestLayoutStrengthensFormBordersAndFocusRing(t *testing.T) {
+	// Form controls (Wine select, Vintage field, Note textarea) blend into the
+	// near-black background — they read as banners more than editable controls.
+	// Rather than restyle per-component, the one rationed <style> block overrides
+	// Pico's dark form-element border/focus tokens so every input/select/textarea
+	// gets a visible resting border and an unmistakable focus ring (keyboard and
+	// pointer). This test locks in the *mechanism* (the overrides are present);
+	// the exact contrast is verified visually + in the PR body. See issue #42 and
+	// look-and-feel.md.
+	html := renderLayout(t)
+
+	style := html
+	if i := strings.Index(style, "<style>"); i >= 0 {
+		style = style[i:]
+	}
+	if j := strings.Index(style, "</style>"); j >= 0 {
+		style = style[:j]
+	}
+
+	// Resting border lifts off Pico's near-invisible dark default so controls
+	// read as editable against the page background.
+	if !strings.Contains(style, "--pico-form-element-border-color:") {
+		t.Errorf("Layout <style> should override --pico-form-element-border-color for a visible resting border; got:\n%s", style)
+	}
+	// Focused border is distinct (keyboard and pointer focus).
+	if !strings.Contains(style, "--pico-form-element-active-border-color:") {
+		t.Errorf("Layout <style> should override --pico-form-element-active-border-color for a distinct focused border; got:\n%s", style)
+	}
+	// The focus RING (a box-shadow driven by this token) is raised so it is
+	// unmistakable rather than the low-contrast dark default.
+	if !strings.Contains(style, "--pico-form-element-focus-color:") {
+		t.Errorf("Layout <style> should override --pico-form-element-focus-color for an unmistakable focus ring; got:\n%s", style)
+	}
+}
+
 func TestLayoutSwaps422Responses(t *testing.T) {
 	html := renderLayout(t)
 	if !strings.Contains(html, "htmx.config.responseHandling") {

@@ -2,6 +2,7 @@ package views
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -65,6 +66,80 @@ func TestLogForm_FirstPaint(t *testing.T) {
 	}
 	if !strings.Contains(html, "Penfolds — Bin 28 Shiraz") {
 		t.Errorf("form should render wine options; got:\n%s", html)
+	}
+}
+
+func TestLogForm_RatingIsStarRadioGroup(t *testing.T) {
+	// Domain accents are consistent across read and write: a Rating is entered
+	// as stars, not a number <select>. The form renders a CSS-only radio group
+	// named "rating" with values 1..5. See look-and-feel.md.
+	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
+	html := render(t, LogForm(model))
+
+	ratingRegion := html
+	if i := strings.Index(html, "Rating"); i >= 0 {
+		ratingRegion = html[i:]
+	}
+	if j := strings.Index(ratingRegion, "</fieldset>"); j >= 0 {
+		ratingRegion = ratingRegion[:j]
+	}
+	if strings.Contains(ratingRegion, "<select name=\"rating\"") {
+		t.Errorf("rating should not be a <select>; got:\n%s", ratingRegion)
+	}
+	for r := 1; r <= 5; r++ {
+		want := `type="radio" name="rating" value="` + strconv.Itoa(r) + `"`
+		if !strings.Contains(html, want) {
+			t.Errorf("rating should render a radio for value %d (%q); got:\n%s", r, want, html)
+		}
+	}
+}
+
+func TestLogForm_PreservesChosenRatingOn422(t *testing.T) {
+	// On a 422 re-render the chosen rating is preserved: the matching radio is
+	// checked, mirroring the old selected?= behaviour.
+	model := LogFormModel{
+		Wines:  []WineOption{{ID: "w1", Label: "Penfolds"}},
+		Rating: "3",
+	}
+	html := render(t, LogForm(model))
+
+	chunks := strings.Split(html, "<input")
+	for _, c := range chunks {
+		open := c
+		if i := strings.Index(open, ">"); i >= 0 {
+			open = open[:i]
+		}
+		if !strings.Contains(open, `name="rating"`) {
+			continue
+		}
+		isThree := strings.Contains(open, `value="3"`)
+		isChecked := strings.Contains(open, "checked")
+		if isThree && !isChecked {
+			t.Errorf("the chosen rating (3) radio should be checked; got:\n%s", open)
+		}
+		if !isThree && isChecked {
+			t.Errorf("only the chosen rating radio should be checked; got:\n%s", open)
+		}
+	}
+}
+
+func TestLogForm_RatingIsRequired(t *testing.T) {
+	// HTML5 constraint: a rating must be chosen. Radios carry required.
+	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
+	html := render(t, LogForm(model))
+
+	found := false
+	for _, c := range strings.Split(html, "<input")[1:] {
+		open := c
+		if i := strings.Index(open, ">"); i >= 0 {
+			open = open[:i]
+		}
+		if strings.Contains(open, `name="rating"`) && strings.Contains(open, "required") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("a rating radio should carry required; got:\n%s", html)
 	}
 }
 

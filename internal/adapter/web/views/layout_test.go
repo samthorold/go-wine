@@ -59,6 +59,29 @@ func TestDrinkerSwitcherIsSwitchOnly(t *testing.T) {
 	}
 }
 
+func TestDrinkerSwitcherGroupsManageWithSwitcher(t *testing.T) {
+	// The everyday switch control and the recessed Manage link read as one
+	// "active Drinker" cluster, not a detached link on its own line. They are
+	// bound into a single Pico group (role="group") so they render as one
+	// horizontal unit, while Manage stays a recessed secondary link out to the
+	// /drinkers page. See issue #46 and look-and-feel.md.
+	opts := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
+	html := render(t, DrinkerSwitcher(DrinkerSwitcherModel{Drinkers: opts}))
+
+	if !strings.Contains(html, `role="group"`) {
+		t.Errorf("switcher should bind the select and Manage link into one Pico group (role=\"group\"); got:\n%s", html)
+	}
+	// Manage must remain the recessed secondary link to /drinkers, inside the group.
+	if !strings.Contains(html, `<a href="/drinkers" class="secondary">Manage</a>`) {
+		t.Errorf("Manage must stay a recessed secondary link to /drinkers; got:\n%s", html)
+	}
+	// The Manage link must sit after the switch control within the group, so the
+	// eye reads select-then-Manage as one cluster.
+	if strings.Index(html, "<select") > strings.Index(html, `href="/drinkers"`) {
+		t.Errorf("the switch <select> should precede the Manage link in the cluster; got:\n%s", html)
+	}
+}
+
 func TestLayoutDefinesReadableMeasure(t *testing.T) {
 	// Readable measure over full bleed: the shell (<main class="container">)
 	// stays wide, but forms/content are constrained to a comfortable column.

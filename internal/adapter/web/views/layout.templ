@@ -161,7 +161,7 @@ templ Layout(title string, current Section, drinkers []DrinkerOption) {
 // set of Drinkers (add/rename) lives on the /drinkers page, not in this chrome —
 // density follows frequency; admin is a noun, not a widget. See look-and-feel.md.
 templ DrinkerSwitcher(model DrinkerSwitcherModel) {
-	<div id="drinker-switcher">
+	<div id="drinker-switcher" role="group">
 		<form method="post" action="/switch">
 			<select name="drinker" aria-label="Drinker" onchange="this.form.submit()">
 				for _, d := range model.Drinkers {

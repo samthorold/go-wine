@@ -10,7 +10,7 @@ import (
 func renderLayout(t *testing.T) string {
 	t.Helper()
 	var sb strings.Builder
-	if err := Layout("Tastings", nil).Render(context.Background(), &sb); err != nil {
+	if err := Layout("Tastings", SectionTastings, nil).Render(context.Background(), &sb); err != nil {
 		t.Fatalf("rendering Layout: %v", err)
 	}
 	return sb.String()
@@ -26,7 +26,7 @@ func TestLayoutBoostsNavigation(t *testing.T) {
 func TestDrinkerSwitcherPostsToSwitch(t *testing.T) {
 	var sb strings.Builder
 	opts := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
-	if err := Layout("Tastings", opts).Render(context.Background(), &sb); err != nil {
+	if err := Layout("Tastings", SectionTastings, opts).Render(context.Background(), &sb); err != nil {
 		t.Fatalf("rendering Layout: %v", err)
 	}
 	html := sb.String()

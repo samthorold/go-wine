@@ -7,6 +7,28 @@ import (
 	"go-wine/internal/app"
 )
 
+func TestWinesPage_MarksWinesNavActive(t *testing.T) {
+	// Active-nav state: exactly one nav link is active, the Wines one.
+	html := render(t, WinesPage(nil, nil))
+
+	if !strings.Contains(html, `<a href="/wines" aria-current="page">Wines</a>`) {
+		t.Errorf("Wines nav link should carry aria-current=\"page\"; got:\n%s", html)
+	}
+	if strings.Contains(html, `<a href="/tastings" aria-current`) {
+		t.Errorf("only the current page's nav link should be active; got:\n%s", html)
+	}
+}
+
+func TestWineDetailPage_MarksWinesNavActive(t *testing.T) {
+	// A detail page belongs to its parent section: a Wine detail marks Wines.
+	wine := app.WineDetailView{ID: "w1", Label: "Penfolds — Bin 28 Shiraz"}
+	html := render(t, WineDetailPage(nil, wine, CompositionFormModel{WineID: "w1"}, app.WineVerdictView{}))
+
+	if !strings.Contains(html, `<a href="/wines" aria-current="page">Wines</a>`) {
+		t.Errorf("wine detail should mark the parent Wines nav active; got:\n%s", html)
+	}
+}
+
 func TestWineDetailPage_HasExactlyOnePrimaryButton(t *testing.T) {
 	// Layout carries the demoted Add/Rename chrome and the form carries the
 	// outline Fill-from-default helper; the page's one filled-accent primary is

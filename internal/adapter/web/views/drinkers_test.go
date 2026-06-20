@@ -5,6 +5,15 @@ import (
 	"testing"
 )
 
+func TestDrinkersPage_MarksNoNavLinkActive(t *testing.T) {
+	// Drinkers has no top-level nav link, so no link is marked active.
+	html := render(t, DrinkersPage(nil, DrinkersModel{}))
+
+	if strings.Contains(html, `aria-current="page"`) {
+		t.Errorf("the drinkers page (no nav link) should mark no nav link active; got:\n%s", html)
+	}
+}
+
 func TestDrinkersManagement_ListsRenameFormsAndAddForm(t *testing.T) {
 	model := DrinkersModel{Drinkers: []DrinkerOption{
 		{ID: "d1", Name: "Sam", Active: true},

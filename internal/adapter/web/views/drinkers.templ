@@ -5,7 +5,7 @@ package views
 // it is a page (Layout + content). Managing the set of Drinkers is a noun, not a
 // widget bolted into the chrome — see look-and-feel.md.
 templ DrinkersPage(drinkers []DrinkerOption, model DrinkersModel) {
-	@Layout("Drinkers", drinkers) {
+	@Layout("Drinkers", SectionNone, drinkers) {
 		<h2>Drinkers</h2>
 		@DrinkersManagement(model)
 	}

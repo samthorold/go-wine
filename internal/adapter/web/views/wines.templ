@@ -134,6 +134,7 @@ templ CompositionForm(model CompositionFormModel) {
 		if model.Style != "" {
 			<button
 				type="button"
+				class="outline"
 				hx-get={ "/wines/" + model.WineID + "/style-default" }
 				hx-target="#composition-form"
 				hx-swap="outerHTML"

@@ -68,12 +68,12 @@ templ DrinkerSwitcher(model DrinkerSwitcherModel) {
 			if msg := model.err("name"); msg != "" {
 				<span class="error">{ msg }</span>
 			}
-			<button type="submit">Add</button>
+			<button type="submit" class="secondary">Add</button>
 		</form>
 		if id := model.activeID(); id != "" {
 			<form hx-put={ "/drinkers/" + id } hx-target="#drinker-switcher" hx-swap="outerHTML">
 				<input type="text" name="name" aria-label="Rename drinker" value={ model.activeName() } required/>
-				<button type="submit">Rename</button>
+				<button type="submit" class="secondary">Rename</button>
 			</form>
 		}
 	</div>

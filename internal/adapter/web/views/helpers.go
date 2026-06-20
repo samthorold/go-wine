@@ -9,34 +9,33 @@ type DrinkerOption struct {
 	Active bool
 }
 
-// DrinkerSwitcherModel is the view model for the switcher region: the Drinkers
-// to choose between (one Active), the name entered in the add form (preserved
-// across a failed submit), and a field-to-message error map (empty on first
-// paint; the empty-string key carries a form-level banner).
+// DrinkerSwitcherModel is the view model for the nav switcher region: the
+// Drinkers to choose between, one Active. The switcher is switch-only chrome;
+// managing the set lives on the /drinkers page.
 type DrinkerSwitcherModel struct {
 	Drinkers []DrinkerOption
-	Name     string
-	Errors   map[string]string
 }
 
-func (m DrinkerSwitcherModel) err(field string) string { return m.Errors[field] }
-
-// activeName is the name of the active Drinker, used to prefill the rename box.
-func (m DrinkerSwitcherModel) activeName() string {
-	for _, d := range m.Drinkers {
-		if d.Active {
-			return d.Name
-		}
-	}
-	return ""
+// DrinkersModel is the view model for the #drinkers management region on the
+// /drinkers page: the Drinkers to list and rename, the name entered in the add
+// form (preserved across a failed add), and a field-to-message error map (empty
+// on first paint; the empty-string key carries a form-level banner). The Drinker
+// the rename error attaches to is carried in RenameErrorID so only that row
+// shows it.
+type DrinkersModel struct {
+	Drinkers      []DrinkerOption
+	Name          string
+	Errors        map[string]string
+	RenameErrorID string
 }
 
-// activeID is the ID of the active Drinker, the target of the rename form.
-func (m DrinkerSwitcherModel) activeID() string {
-	for _, d := range m.Drinkers {
-		if d.Active {
-			return d.ID
-		}
+func (m DrinkersModel) err(field string) string { return m.Errors[field] }
+
+// renameErr returns the rename error for a given Drinker row, or "" — so a
+// failed rename shows its error only on the row it concerns.
+func (m DrinkersModel) renameErr(id string) string {
+	if id == m.RenameErrorID {
+		return m.Errors["rename"]
 	}
 	return ""
 }

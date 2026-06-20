@@ -1,0 +1,44 @@
+package views
+
+// DrinkersPage is the management view for the set of Drinkers: list them, add a
+// new one, rename an existing one. A Drinker can navigate to and bookmark it, so
+// it is a page (Layout + content). Managing the set of Drinkers is a noun, not a
+// widget bolted into the chrome — see look-and-feel.md.
+templ DrinkersPage(drinkers []DrinkerOption, model DrinkersModel) {
+	@Layout("Drinkers", drinkers) {
+		<h2>Drinkers</h2>
+		@DrinkersManagement(model)
+	}
+}
+
+// DrinkersManagement renders the #drinkers region: the list with a rename form
+// per Drinker and the add form. It owns its id so the 422 re-render (a failed
+// add or rename) and first paint render from one component and cannot drift.
+templ DrinkersManagement(model DrinkersModel) {
+	<div id="drinkers">
+		if msg := model.err(""); msg != "" {
+			<p class="error banner" role="alert">{ msg }</p>
+		}
+		<ul>
+			for _, d := range model.Drinkers {
+				<li>
+					<form hx-put={ "/drinkers/" + d.ID } hx-target="#drinkers" hx-swap="outerHTML">
+						<input type="text" name="name" aria-label="Rename drinker" value={ d.Name } required/>
+						<button type="submit" class="secondary">Rename</button>
+						if msg := model.renameErr(d.ID); msg != "" {
+							<span class="error">{ msg }</span>
+						}
+					</form>
+				</li>
+			}
+		</ul>
+		<h3>Add a drinker</h3>
+		<form hx-post="/drinkers" hx-target="#drinkers" hx-swap="outerHTML">
+			<input type="text" name="name" placeholder="Add a drinker" aria-label="New drinker name" value={ model.Name } required/>
+			if msg := model.err("name"); msg != "" {
+				<span class="error">{ msg }</span>
+			}
+			<button type="submit" class="secondary">Add</button>
+		</form>
+	</div>
+}

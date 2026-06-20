@@ -38,23 +38,22 @@ func TestDrinkerSwitcherPostsToSwitch(t *testing.T) {
 	}
 }
 
-func TestDrinkerSwitcherButtonsAreSecondary(t *testing.T) {
-	// Add/Rename are chrome/admin actions, not the view's primary action.
-	// They must recede to Pico's secondary variant so the page keeps a single
-	// filled-accent primary (e.g. Log tasting). See look-and-feel.md.
+func TestDrinkerSwitcherIsSwitchOnly(t *testing.T) {
+	// Density follows frequency: the nav switcher keeps only the everyday
+	// control — the active-Drinker select — plus a link to the management page.
+	// Managing the set of Drinkers (add/rename) is a noun, not a chrome widget,
+	// so it must NOT appear in the switcher. See look-and-feel.md.
 	opts := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
 	html := render(t, DrinkerSwitcher(DrinkerSwitcherModel{Drinkers: opts}))
 
-	if !strings.Contains(html, `Add`) || !strings.Contains(html, `Rename`) {
-		t.Fatalf("switcher should render Add and Rename; got:\n%s", html)
+	if strings.Contains(html, "Add") || strings.Contains(html, "Rename") {
+		t.Errorf("switcher must not host add/rename admin controls; got:\n%s", html)
 	}
-	for _, want := range []string{
-		`<button type="submit" class="secondary">Add</button>`,
-		`<button type="submit" class="secondary">Rename</button>`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("chrome button should be Pico secondary: want %q; got:\n%s", want, html)
-		}
+	if strings.Contains(html, `hx-post="/drinkers"`) || strings.Contains(html, "hx-put") {
+		t.Errorf("switcher must not host the add/rename mutations; got:\n%s", html)
+	}
+	if !strings.Contains(html, `href="/drinkers"`) {
+		t.Errorf("switcher should link to the /drinkers management page; got:\n%s", html)
 	}
 }
 

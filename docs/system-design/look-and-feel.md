@@ -52,3 +52,40 @@ their own client-side state and need re-initialising on swapped-in content, whic
 fights htmx's model where the server returns the markup and htmx swaps it. Any
 interactivity is a server-rendered fragment swapped by htmx, never a JS component
 mounted on the client.
+
+## Decision rules for a screen
+
+The sections above fix *where styling lives*. These fix *how a screen is
+composed* — a short set of rules, each earning its place by changing a decision
+rather than describing taste, and each holding *within* the classless,
+ration-the-custom-CSS constraint above rather than loosening it.
+
+- **One primary action per view.** Pico renders every `<button>` as a filled
+  accent, so left alone a screen has as many "primary" actions as it has buttons
+  — and none of them reads as primary. The filled accent is reserved for the
+  single action the view exists to perform (`Log tasting`). Chrome and admin
+  actions take Pico's `secondary`/`outline` so they recede. If a view has no one
+  obvious primary action, that is usually a sign it is doing two jobs.
+
+- **Density follows frequency.** What a Drinker does every visit gets the
+  prominence; what they do rarely recedes — onto its own page if it earns one.
+  The primary task surface stays task-only and is not crowded by occasional
+  management controls.
+
+- **Admin is a noun, not a widget.** Because there are
+  [no client-side components](#no-client-side-ui-components), managing things
+  (Drinkers, Companions) is a server-rendered **page reached by navigation** — a
+  REST noun like every other — not a panel bolted into the global chrome. The
+  everyday *use* of a thing (switching the active Drinker) may live in the
+  chrome; *managing* the set of them does not.
+
+- **Readable measure over full bleed.** Forms and prose are constrained to a
+  comfortable column even though the shell (`<main class="container">`) is wide.
+  A full-width `<select>` or `<textarea>` is a long line to scan and a long
+  pointer journey; the content column is narrower than the chrome.
+
+- **Domain accents are consistent across read and write.** A thing the app gives
+  a [custom accent](#classes-are-the-exception-custom-css-is-rationed) looks the
+  same wherever it appears — a Rating reads as stars *and* is entered as stars,
+  not stars in the list and a number `<select>` in the form. One accent, both
+  directions.

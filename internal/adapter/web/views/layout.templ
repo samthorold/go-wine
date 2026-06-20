@@ -50,6 +50,14 @@ templ Layout(title string, current Section, drinkers []DrinkerOption) {
 				.rating-input input:checked ~ label,
 				.rating-input label:hover,
 				.rating-input label:hover ~ label { color: #d9534f; }
+				/* The "no rating" affordance: a small muted text control to clear
+				   back to no stars, not a sixth star. Sits visually after the
+				   row-reversed stars and never takes the coral accent. See #39. */
+				.rating-input label.rating-clear,
+				.rating-input label:hover ~ label.rating-clear { font-size: 0.75rem;
+					align-self: center; margin-left: 0.75rem;
+					color: var(--pico-muted-color); text-decoration: underline; }
+				.rating-input label.rating-clear:hover { color: var(--pico-color); }
 				/* Readable measure over full bleed: the shell (<main class="container">)
 				   stays wide for the nav/chrome, but forms and prose sit in a narrower
 				   content column so a <select>/<textarea> is a short line to scan and a

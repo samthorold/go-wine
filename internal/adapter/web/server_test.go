@@ -213,6 +213,37 @@ func TestLogTasting_BadRatingReRendersFormWith422(t *testing.T) {
 	}
 }
 
+func TestLogTasting_NoRatingReRendersFormWith422(t *testing.T) {
+	// A fresh tasting starts unrated; submitting it with the no-rating option
+	// (an empty "rating") is rejected by the domain (the authority), re-rendering
+	// the form with an inline error and the entered values preserved — not saved
+	// as a phantom rating. See issue #39.
+	srv, _, w := newTestServer(t)
+
+	rec := postTasting(t, srv, url.Values{
+		"wine_id": {w.ID.String()},
+		"rating":  {""},
+		"note":    {"forgot to rate"},
+	})
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnprocessableEntity)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="log-form"`) {
+		t.Errorf("no-rating submit should re-render the form; got:\n%s", body)
+	}
+	if !strings.Contains(body, "rating must be between 1 and 5") {
+		t.Errorf("no-rating submit should show the inline rating error; got:\n%s", body)
+	}
+	if !strings.Contains(body, "forgot to rate") {
+		t.Errorf("no-rating submit should preserve the entered note; got:\n%s", body)
+	}
+	if strings.Contains(body, `hx-swap-oob="true"`) {
+		t.Errorf("no-rating failure must not touch the tastings list (no OOB); got:\n%s", body)
+	}
+}
+
 func TestLogTasting_UnknownWineReRendersFormWith422(t *testing.T) {
 	srv, _, _ := newTestServer(t)
 

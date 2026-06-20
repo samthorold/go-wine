@@ -38,6 +38,26 @@ func TestDrinkerSwitcherPostsToSwitch(t *testing.T) {
 	}
 }
 
+func TestDrinkerSwitcherButtonsAreSecondary(t *testing.T) {
+	// Add/Rename are chrome/admin actions, not the view's primary action.
+	// They must recede to Pico's secondary variant so the page keeps a single
+	// filled-accent primary (e.g. Log tasting). See look-and-feel.md.
+	opts := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
+	html := render(t, DrinkerSwitcher(DrinkerSwitcherModel{Drinkers: opts}))
+
+	if !strings.Contains(html, `Add`) || !strings.Contains(html, `Rename`) {
+		t.Fatalf("switcher should render Add and Rename; got:\n%s", html)
+	}
+	for _, want := range []string{
+		`<button type="submit" class="secondary">Add</button>`,
+		`<button type="submit" class="secondary">Rename</button>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("chrome button should be Pico secondary: want %q; got:\n%s", want, html)
+		}
+	}
+}
+
 func TestLayoutSwaps422Responses(t *testing.T) {
 	html := renderLayout(t)
 	if !strings.Contains(html, "htmx.config.responseHandling") {

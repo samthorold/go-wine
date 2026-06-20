@@ -74,6 +74,22 @@ func TestVarietyDetailPage_ConfirmedBadge(t *testing.T) {
 	}
 }
 
+func TestVarietyDetailPage_HasExactlyOnePrimaryButton(t *testing.T) {
+	// Layout carries the demoted Add/Rename chrome; the page's one filled-accent
+	// primary is Save characteristics. See look-and-feel.md.
+	drinkers := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
+	view := app.VarietyDetailView{ID: "v1", Name: "Shiraz"}
+	form := VarietyCharacteristicsFormModel{VarietyID: "v1"}
+	html := render(t, VarietyDetailPage(drinkers, view, form, app.VarietyPreferenceView{}))
+
+	if !strings.Contains(html, `<button type="submit">Save characteristics</button>`) {
+		t.Errorf("Save characteristics should be the filled-accent primary; got:\n%s", html)
+	}
+	if got := countFilledButtons(html); got != 1 {
+		t.Errorf("variety detail page should have exactly one filled-accent button, got %d;\n%s", got, html)
+	}
+}
+
 func TestVarietyCharacteristicsForm_PreservesValuesAndErrors(t *testing.T) {
 	model := VarietyCharacteristicsFormModel{
 		VarietyID: "v1", Body: "9", Tannin: "4", Acidity: "2", Sweetness: "1", Alcohol: "5",

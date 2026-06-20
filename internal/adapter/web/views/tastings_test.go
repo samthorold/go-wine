@@ -96,6 +96,37 @@ func TestLogForm_RendersFormLevelBanner(t *testing.T) {
 	}
 }
 
+// countFilledButtons counts <button> elements that carry no Pico variant class
+// (secondary/outline) — i.e. the filled-accent primaries. The look-and-feel
+// rule is exactly one per page.
+func countFilledButtons(html string) int {
+	n := 0
+	for _, frag := range strings.Split(html, "<button")[1:] {
+		open := frag
+		if i := strings.Index(open, ">"); i >= 0 {
+			open = open[:i]
+		}
+		if !strings.Contains(open, `class="secondary"`) &&
+			!strings.Contains(open, `class="outline"`) {
+			n++
+		}
+	}
+	return n
+}
+
+func TestTastingsPage_HasExactlyOnePrimaryButton(t *testing.T) {
+	drinkers := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
+	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
+	html := render(t, TastingsPage(drinkers, model, nil))
+
+	if !strings.Contains(html, `<button type="submit">Log tasting</button>`) {
+		t.Errorf("Log tasting should be the filled-accent primary; got:\n%s", html)
+	}
+	if got := countFilledButtons(html); got != 1 {
+		t.Errorf("tastings page should have exactly one filled-accent button, got %d;\n%s", got, html)
+	}
+}
+
 func TestTastingRow_ShowsCompanions(t *testing.T) {
 	view := app.TastingView{
 		WineLabel:  "Penfolds — Bin 28 Shiraz",

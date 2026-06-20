@@ -65,6 +65,7 @@ func NewServer(d domain.DrinkerRepository, w domain.WineRepository, v domain.Var
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /tastings", s.handleTastings)
 	s.mux.HandleFunc("POST /tastings", s.handleLogTasting)
+	s.mux.HandleFunc("POST /tastings/companions", s.handleAddCompanion)
 	s.mux.HandleFunc("GET /discovery", s.handleDiscovery)
 	s.mux.HandleFunc("GET /varieties", s.handleVarieties)
 	s.mux.HandleFunc("GET /varieties/{id}", s.handleVariety)
@@ -610,10 +611,73 @@ func (s *Server) handleLogTasting(w http.ResponseWriter, r *http.Request) {
 	_ = views.TastingListOOB(tastings).Render(ctx, w)
 }
 
-// resolveCompanions turns the submitted form into a set of Companion IDs to
-// attach: the existing Companions ticked (validated to belong to the active
-// Drinker's personal zone) plus any new names typed, each persisted as a fresh
-// Companion scoped to the active Drinker.
+// handleAddCompanion creates a Companion in the active Drinker's personal zone
+// from the "+ Add companion" control and returns the re-rendered #companions
+// region (a bare fragment, no Layout) with the new Companion present and ticked,
+// plus every previously-ticked Companion preserved. It is a mutation against the
+// Companions region ONLY: the in-progress Wine/rating/note the Drinker entered is
+// untouched because the response swaps just #companions. A blank name is rejected
+// by the domain and re-renders the region unchanged rather than persisting. See
+// issue #44.
+func (s *Server) handleAddCompanion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	active, err := s.activeDrinker(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// The boxes already ticked (sent via hx-include), validated to the Drinker's
+	// zone, so the add never wipes a prior pick nor attaches a foreign Companion.
+	selected := s.ownedSelection(ctx, active.ID, r.Form["companion_id"])
+
+	name := strings.TrimSpace(r.FormValue("new_companion"))
+	c, err := domain.NewCompanion(active.ID, name)
+	if err == nil {
+		if err := s.companions.Add(ctx, c); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		selected = append(selected, c.ID.String()) // the new one starts ticked
+	}
+
+	copts, err := s.companionOptions(ctx, active.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = views.Companions(views.LogFormModel{Companions: copts, CompanionIDs: selected}).Render(ctx, w)
+}
+
+// ownedSelection filters submitted companion ids down to those that belong to
+// the Drinker's personal zone, so a re-render never re-checks a foreign id.
+func (s *Server) ownedSelection(ctx context.Context, drinkerID domain.ID, raw []string) []string {
+	owned := make(map[string]bool)
+	if existing, err := s.companions.ListByDrinker(ctx, drinkerID); err == nil {
+		for _, c := range existing {
+			owned[c.ID.String()] = true
+		}
+	}
+	out := make([]string, 0, len(raw))
+	for _, id := range raw {
+		if owned[id] {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// resolveCompanions turns the submitted form into the set of Companion IDs to
+// attach: the existing Companions ticked, each validated to belong to the active
+// Drinker's personal zone so one from another Drinker's zone is never attached.
+// New Companions are added up front via the "+ Add companion" control
+// (POST /tastings/companions), not parsed from free text at submit time — see
+// capturing-tastings.md (an explicit pick keeps Companion identity clean) and
+// issue #44.
 func (s *Server) resolveCompanions(ctx context.Context, drinkerID domain.ID, r *http.Request) ([]domain.ID, error) {
 	owned := make(map[domain.ID]bool)
 	existing, err := s.companions.ListByDrinker(ctx, drinkerID)
@@ -631,31 +695,7 @@ func (s *Server) resolveCompanions(ctx context.Context, drinkerID domain.ID, r *
 			ids = append(ids, id)
 		}
 	}
-
-	for _, name := range parseNewCompanions(r.FormValue("new_companions")) {
-		c, err := domain.NewCompanion(drinkerID, name)
-		if err != nil {
-			continue // skip blanks rather than fail the whole tasting
-		}
-		if err := s.companions.Add(ctx, c); err != nil {
-			return nil, err
-		}
-		ids = append(ids, c.ID)
-	}
 	return ids, nil
-}
-
-// parseNewCompanions splits the free-text "add new" field into trimmed names,
-// separated by commas or newlines, dropping blanks.
-func parseNewCompanions(s string) []string {
-	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == '\n' || r == '\r' })
-	out := make([]string, 0, len(fields))
-	for _, f := range fields {
-		if name := strings.TrimSpace(f); name != "" {
-			out = append(out, name)
-		}
-	}
-	return out
 }
 
 // logFormModel rebuilds the form's view model from the submitted request,
@@ -665,14 +705,13 @@ func (s *Server) logFormModel(ctx context.Context, drinkerID domain.ID, r *http.
 	wopts, _ := s.wineOptions(ctx)
 	copts, _ := s.companionOptions(ctx, drinkerID)
 	return views.LogFormModel{
-		Wines:         wopts,
-		Companions:    copts,
-		WineID:        r.FormValue("wine_id"),
-		Vintage:       r.FormValue("vintage"),
-		Rating:        r.FormValue("rating"),
-		Note:          r.FormValue("note"),
-		CompanionIDs:  r.Form["companion_id"],
-		NewCompanions: r.FormValue("new_companions"),
+		Wines:        wopts,
+		Companions:   copts,
+		WineID:       r.FormValue("wine_id"),
+		Vintage:      r.FormValue("vintage"),
+		Rating:       r.FormValue("rating"),
+		Note:         r.FormValue("note"),
+		CompanionIDs: r.Form["companion_id"],
 	}
 }
 

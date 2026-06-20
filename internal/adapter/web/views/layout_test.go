@@ -57,6 +57,20 @@ func TestDrinkerSwitcherIsSwitchOnly(t *testing.T) {
 	}
 }
 
+func TestLayoutDefinesReadableMeasure(t *testing.T) {
+	// Readable measure over full bleed: the shell (<main class="container">)
+	// stays wide, but forms/content are constrained to a comfortable column.
+	// That column class is defined in the one rationed <style> block.
+	// See look-and-feel.md.
+	html := renderLayout(t)
+	if !strings.Contains(html, ".measure") {
+		t.Errorf("Layout <style> should define a .measure content-column class; got:\n%s", html)
+	}
+	if !strings.Contains(html, "max-width") {
+		t.Errorf(".measure should constrain width via max-width; got:\n%s", html)
+	}
+}
+
 func TestLayoutSwaps422Responses(t *testing.T) {
 	html := renderLayout(t)
 	if !strings.Contains(html, "htmx.config.responseHandling") {

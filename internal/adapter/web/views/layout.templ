@@ -23,6 +23,11 @@ templ Layout(title string, drinkers []DrinkerOption) {
 			<style>
 				/* Domain accents only — everything else is Pico's classless defaults. */
 				.rating { color: #d9534f; letter-spacing: 2px; }
+				/* Readable measure over full bleed: the shell (<main class="container">)
+				   stays wide for the nav/chrome, but forms and prose sit in a narrower
+				   content column so a <select>/<textarea> is a short line to scan and a
+				   short pointer journey. See look-and-feel.md. */
+				.measure { max-width: 45rem; }
 			</style>
 		</head>
 		<body hx-boost="true">

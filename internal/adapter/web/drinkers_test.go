@@ -46,6 +46,37 @@ func newDrinkerTestServer(t *testing.T) (*web.Server, domain.Drinker, *memory.Dr
 	return srv, d, drinkers
 }
 
+func TestDrinkersPage_ListsDrinkers(t *testing.T) {
+	srv, _, drinkers := newDrinkerTestServer(t)
+	partner, _ := domain.NewDrinker("Partner")
+	if err := drinkers.Save(context.Background(), partner); err != nil {
+		t.Fatalf("save drinker: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/drinkers", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Sam") || !strings.Contains(body, "Partner") {
+		t.Errorf("page should list both Drinkers; got:\n%s", body)
+	}
+	// It is a full page (Layout shell), not a bare fragment.
+	if !strings.Contains(body, "<html") {
+		t.Errorf("GET /drinkers should render a full page; got:\n%s", body)
+	}
+	// The page hosts the add and rename forms (moved off the nav switcher).
+	if !strings.Contains(body, `hx-post="/drinkers"`) {
+		t.Errorf("page should host the add form; got:\n%s", body)
+	}
+	if !strings.Contains(body, `hx-put="/drinkers/`) {
+		t.Errorf("page should host a rename form per Drinker; got:\n%s", body)
+	}
+}
+
 func TestCreateDrinker_PostCreatesAndSwitchesTo(t *testing.T) {
 	srv, _, drinkers := newDrinkerTestServer(t)
 
@@ -58,8 +89,8 @@ func TestCreateDrinker_PostCreatesAndSwitchesTo(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusSeeOther)
 	}
-	if loc := rec.Header().Get("Location"); loc != "/tastings" {
-		t.Errorf("Location = %q, want /tastings", loc)
+	if loc := rec.Header().Get("Location"); loc != "/drinkers" {
+		t.Errorf("Location = %q, want /drinkers", loc)
 	}
 
 	// The new Drinker is persisted and selectable.
@@ -98,8 +129,17 @@ func TestCreateDrinker_EmptyNameReRendersWith422(t *testing.T) {
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnprocessableEntity)
 	}
-	if !strings.Contains(rec.Body.String(), "name") {
-		t.Errorf("failure should re-render the form with an error; got:\n%s", rec.Body.String())
+	body := rec.Body.String()
+	if !strings.Contains(body, "name") {
+		t.Errorf("failure should re-render the form with an error; got:\n%s", body)
+	}
+	// The 422 re-render targets the management region on the /drinkers page,
+	// not the slimmed nav switcher.
+	if !strings.Contains(body, `id="drinkers"`) {
+		t.Errorf("failed add should re-render the #drinkers management region; got:\n%s", body)
+	}
+	if strings.Contains(body, `id="drinker-switcher"`) {
+		t.Errorf("failed add must not re-render the nav switcher region; got:\n%s", body)
 	}
 }
 
@@ -132,6 +172,9 @@ func TestRenameDrinker_EmptyNameReRendersWith422(t *testing.T) {
 
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnprocessableEntity)
+	}
+	if !strings.Contains(rec.Body.String(), `id="drinkers"`) {
+		t.Errorf("failed rename should re-render the #drinkers management region; got:\n%s", rec.Body.String())
 	}
 	got, _ := drinkers.Get(context.Background(), d.ID)
 	if got.Name != "Sam" {

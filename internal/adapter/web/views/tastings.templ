@@ -64,17 +64,18 @@ templ LogForm(model LogFormModel) {
 				<span class="error">{ msg }</span>
 			}
 		</label>
-		<label>
-			Rating
-			<select name="rating" required>
+		<fieldset>
+			<legend>Rating</legend>
+			<span class="rating rating-input">
 				for r := 5; r >= 1; r-- {
-					<option value={ strconv.Itoa(r) } selected?={ strconv.Itoa(r) == model.Rating }>{ strconv.Itoa(r) }</option>
+					<input type="radio" name="rating" value={ strconv.Itoa(r) } id={ "rating-" + strconv.Itoa(r) } required checked?={ strconv.Itoa(r) == model.Rating }/>
+					<label for={ "rating-" + strconv.Itoa(r) } aria-label={ strconv.Itoa(r) + " stars" }>★</label>
 				}
-			</select>
+			</span>
 			if msg := model.err("rating"); msg != "" {
 				<span class="error">{ msg }</span>
 			}
-		</label>
+		</fieldset>
 		<label>
 			Note
 			<textarea name="note" rows="2" placeholder="cold night, lamb stew, cosy...">{ model.Note }</textarea>

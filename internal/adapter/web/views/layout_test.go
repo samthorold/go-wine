@@ -71,6 +71,29 @@ func TestLayoutDefinesReadableMeasure(t *testing.T) {
 	}
 }
 
+func TestLayoutStylesStarRatingInput(t *testing.T) {
+	// Domain accents are consistent across read and write: the star radio input
+	// is styled CSS-only in the one rationed <style> block, reusing the .rating
+	// coral accent so read and write stars match. See look-and-feel.md.
+	html := renderLayout(t)
+
+	style := html
+	if i := strings.Index(style, "<style>"); i >= 0 {
+		style = style[i:]
+	}
+	if j := strings.Index(style, "</style>"); j >= 0 {
+		style = style[:j]
+	}
+	if !strings.Contains(style, ".rating-input") {
+		t.Errorf("Layout <style> should style the .rating-input star control; got:\n%s", style)
+	}
+	// The accent must be the existing .rating colour, not a new one: the rule
+	// is grouped onto the .rating selector rather than redeclaring the colour.
+	if !strings.Contains(style, ".rating-input") || !strings.Contains(style, ".rating") {
+		t.Errorf(".rating-input should reuse the .rating accent; got:\n%s", style)
+	}
+}
+
 func TestLayoutSwaps422Responses(t *testing.T) {
 	html := renderLayout(t)
 	if !strings.Contains(html, "htmx.config.responseHandling") {

@@ -23,6 +23,19 @@ templ Layout(title string, drinkers []DrinkerOption) {
 			<style>
 				/* Domain accents only — everything else is Pico's classless defaults. */
 				.rating { color: #d9534f; letter-spacing: 2px; }
+				/* The Rating entered as stars: a CSS-only radio group sharing the
+				   .rating coral accent so read and write stars match. No JS. The
+				   inputs are in reverse order (5..1) so the sibling combinator can
+				   light the chosen star and the ones below it. See look-and-feel.md. */
+				.rating-input { display: inline-flex; flex-direction: row-reverse;
+					justify-content: flex-end; letter-spacing: 2px; }
+				.rating-input input { position: absolute; width: 1px; height: 1px;
+					opacity: 0; }
+				.rating-input label { cursor: pointer; color: var(--pico-muted-color);
+					font-size: 1.5rem; line-height: 1; }
+				.rating-input input:checked ~ label,
+				.rating-input label:hover,
+				.rating-input label:hover ~ label { color: #d9534f; }
 				/* Readable measure over full bleed: the shell (<main class="container">)
 				   stays wide for the nav/chrome, but forms and prose sit in a narrower
 				   content column so a <select>/<textarea> is a short line to scan and a

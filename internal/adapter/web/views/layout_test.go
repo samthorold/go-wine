@@ -112,6 +112,38 @@ func TestLayoutStylesRatingClearAffordance(t *testing.T) {
 	}
 }
 
+func TestLayoutRaisesTextContrastForAA(t *testing.T) {
+	// WCAG AA contrast (>= 4.5:1) across every form and page: rather than restyle
+	// per-component, the one rationed <style> block overrides Pico's dark
+	// contrast tokens so labels, helper <small> text, entered values and
+	// placeholders all clear AA against the near-black background. This test
+	// locks in the *mechanism* (the overrides are present); the contrast maths
+	// is verified visually + in the PR body. See issue #41 and look-and-feel.md.
+	html := renderLayout(t)
+
+	style := html
+	if i := strings.Index(style, "<style>"); i >= 0 {
+		style = style[i:]
+	}
+	if j := strings.Index(style, "</style>"); j >= 0 {
+		style = style[:j]
+	}
+
+	// Helper text and labels lift off Pico's borderline muted grey.
+	if !strings.Contains(style, "--pico-muted-color:") {
+		t.Errorf("Layout <style> should override --pico-muted-color for AA-legible labels/helper text; got:\n%s", style)
+	}
+	// Placeholder stays dimmer than entered values but legible — an explicit
+	// override keeps it distinguishable while clearing AA.
+	if !strings.Contains(style, "--pico-form-element-placeholder-color:") {
+		t.Errorf("Layout <style> should override --pico-form-element-placeholder-color so placeholders stay legible yet dimmer than values; got:\n%s", style)
+	}
+	// Entered values / body text are set explicitly bright.
+	if !strings.Contains(style, "--pico-color:") {
+		t.Errorf("Layout <style> should override --pico-color for bright entered-value/body text; got:\n%s", style)
+	}
+}
+
 func TestLayoutSwaps422Responses(t *testing.T) {
 	html := renderLayout(t)
 	if !strings.Contains(html, "htmx.config.responseHandling") {

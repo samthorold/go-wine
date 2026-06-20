@@ -35,6 +35,20 @@ templ Layout(title string, current Section, drinkers []DrinkerOption) {
 				];
 			</script>
 			<style>
+				/* Text contrast: Pico's dark muted/placeholder greys sit borderline
+				   against the near-black background (helper <small> ~4.8:1,
+				   placeholder ~5.7:1, and labels inherit the muted grey), so we lift
+				   the three Pico contrast tokens once here and every form/page
+				   benefits. Ratios vs --pico-background-color (#13161e): entered
+				   values/body 14.6:1, labels/helper text 9.9:1, placeholder 7.1:1 —
+				   all clear WCAG AA (>=4.5:1), with the placeholder kept the dimmest
+				   of the three so it stays distinguishable from typed values.
+				   See issue #41 and look-and-feel.md. */
+				[data-theme="dark"] {
+					--pico-color: #e4e7eb;
+					--pico-muted-color: #b9c0cc;
+					--pico-form-element-placeholder-color: #9aa3b2;
+				}
 				/* Domain accents only — everything else is Pico's classless defaults. */
 				.rating { color: #d9534f; letter-spacing: 2px; }
 				/* The Rating entered as stars: a CSS-only radio group sharing the

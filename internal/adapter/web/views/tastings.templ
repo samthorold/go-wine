@@ -42,7 +42,7 @@ templ tastingList(tastings []app.TastingView, oob bool) {
 }
 
 templ LogForm(model LogFormModel) {
-	<form id="log-form" class="measure" hx-post="/tastings" hx-target="#log-form" hx-swap="outerHTML">
+	<form id="log-form" hx-post="/tastings" hx-target="#log-form" hx-swap="outerHTML">
 		if msg := model.err(""); msg != "" {
 			<p class="error banner" role="alert">{ msg }</p>
 		}

@@ -306,19 +306,33 @@ func TestTastingsPage_HasExactlyOnePrimaryButton(t *testing.T) {
 	}
 }
 
-func TestLogForm_ConstrainedToReadableMeasure(t *testing.T) {
-	// Readable measure over full bleed: the form/content region carries the
-	// .measure content-column class so it does not stretch to the full
-	// container width. See look-and-feel.md.
+func TestTastingsPage_ContentSitsInReadableMeasure(t *testing.T) {
+	// Readable measure over full bleed: the tasting page's content (form + list)
+	// sits inside the shared .measure content column so it does not stretch to the
+	// full container width. The constraint comes from the shared Layout wrapper —
+	// applied once for every page — not from a per-form class, so there is a single
+	// source of the column width. See issue #45 / look-and-feel.md.
+	drinkers := []DrinkerOption{{ID: "d1", Name: "Sam", Active: true}}
 	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
-	html := render(t, LogForm(model))
+	html := render(t, TastingsPage(drinkers, model, nil))
 
-	form := html[strings.Index(html, "<form"):]
+	// The log form sits inside the shared .measure column...
+	col := strings.Index(html, `class="measure"`)
+	if col < 0 {
+		t.Fatalf("tastings page content should sit in the shared .measure column; got:\n%s", html)
+	}
+	if !strings.Contains(html[col:], `id="log-form"`) {
+		t.Errorf("log form should sit inside the shared .measure column; got:\n%s", html)
+	}
+
+	// ...and the form itself no longer carries a redundant per-form measure class,
+	// so the column width has a single source and the two cannot drift.
+	form := html[strings.Index(html, `id="log-form"`):]
 	if i := strings.Index(form, ">"); i >= 0 {
 		form = form[:i]
 	}
-	if !strings.Contains(form, "measure") {
-		t.Errorf("log form should carry the .measure content-column class; got open tag:\n%s", form)
+	if strings.Contains(form, "measure") {
+		t.Errorf("log form must not redundantly carry .measure (shared column owns it); got open tag:\n%s", form)
 	}
 }
 

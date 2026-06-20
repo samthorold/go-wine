@@ -94,6 +94,34 @@ func TestLogForm_RatingIsStarRadioGroup(t *testing.T) {
 	}
 }
 
+func TestLogForm_FirstPaintHasNoRatingSelected(t *testing.T) {
+	// A fresh tasting starts with NO rating selected so a Drinker cannot save a
+	// phantom rating. None of the 1..5 value-bearing radios is checked; a
+	// "no rating" option (value="") is checked instead. See issue #39.
+	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
+	html := render(t, LogForm(model))
+
+	for _, c := range strings.Split(html, "<input")[1:] {
+		open := c
+		if i := strings.Index(open, ">"); i >= 0 {
+			open = open[:i]
+		}
+		if !strings.Contains(open, `name="rating"`) {
+			continue
+		}
+		valued := !strings.Contains(open, `value=""`)
+		checked := strings.Contains(open, "checked")
+		if valued && checked {
+			t.Errorf("no value-bearing rating radio should be checked on first paint; got:\n%s", open)
+		}
+	}
+
+	// The "no rating" option exists and is the one checked by default.
+	if !strings.Contains(html, `name="rating" value=""`) {
+		t.Errorf("form should offer a no-rating option (value=\"\"); got:\n%s", html)
+	}
+}
+
 func TestLogForm_PreservesChosenRatingOn422(t *testing.T) {
 	// On a 422 re-render the chosen rating is preserved: the matching radio is
 	// checked, mirroring the old selected?= behaviour.
@@ -123,23 +151,37 @@ func TestLogForm_PreservesChosenRatingOn422(t *testing.T) {
 	}
 }
 
-func TestLogForm_RatingIsRequired(t *testing.T) {
-	// HTML5 constraint: a rating must be chosen. Radios carry required.
+func TestLogForm_RatingIsNotHTML5Required(t *testing.T) {
+	// A fresh tasting starts unrated and can be submitted as "no rating": the
+	// domain command handler is the authority that rejects it (with an inline
+	// 422 error), not an HTML5 required constraint — which a checked value=""
+	// option would satisfy anyway, making it meaningless. See issue #39.
 	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}}
 	html := render(t, LogForm(model))
 
-	found := false
 	for _, c := range strings.Split(html, "<input")[1:] {
 		open := c
 		if i := strings.Index(open, ">"); i >= 0 {
 			open = open[:i]
 		}
 		if strings.Contains(open, `name="rating"`) && strings.Contains(open, "required") {
-			found = true
+			t.Errorf("rating radios must not carry HTML5 required; the domain is the authority; got:\n%s", open)
 		}
 	}
-	if !found {
-		t.Errorf("a rating radio should carry required; got:\n%s", html)
+}
+
+func TestLogForm_OffersClearToNoRating(t *testing.T) {
+	// The Drinker can clear a selected rating back to "none": a checked rating
+	// is still accompanied by the no-rating option so a click returns to unrated
+	// without JS. See issue #39.
+	model := LogFormModel{Wines: []WineOption{{ID: "w1", Label: "Penfolds"}}, Rating: "3"}
+	html := render(t, LogForm(model))
+
+	if !strings.Contains(html, `name="rating" value=""`) {
+		t.Errorf("a rated form should still offer the no-rating option to clear; got:\n%s", html)
+	}
+	if !strings.Contains(html, "rating-clear") {
+		t.Errorf("the no-rating option should carry a Clear affordance; got:\n%s", html)
 	}
 }
 

@@ -94,6 +94,24 @@ func TestLayoutStylesStarRatingInput(t *testing.T) {
 	}
 }
 
+func TestLayoutStylesRatingClearAffordance(t *testing.T) {
+	// The no-rating "Clear" affordance recedes: it is a small muted control, not
+	// a coral star, so it reads as "return to no rating" rather than a sixth
+	// star. Styled CSS-only in the one rationed <style> block. See issue #39.
+	html := renderLayout(t)
+
+	style := html
+	if i := strings.Index(style, "<style>"); i >= 0 {
+		style = style[i:]
+	}
+	if j := strings.Index(style, "</style>"); j >= 0 {
+		style = style[:j]
+	}
+	if !strings.Contains(style, ".rating-clear") {
+		t.Errorf("Layout <style> should style the .rating-clear no-rating affordance; got:\n%s", style)
+	}
+}
+
 func TestLayoutSwaps422Responses(t *testing.T) {
 	html := renderLayout(t)
 	if !strings.Contains(html, "htmx.config.responseHandling") {

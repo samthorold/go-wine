@@ -244,6 +244,38 @@ func TestLogTasting_NoRatingReRendersFormWith422(t *testing.T) {
 	}
 }
 
+func TestLogTasting_NoWineReRendersFormWith422(t *testing.T) {
+	// The Wine select defaults to a non-submittable placeholder and HTML5
+	// `required` blocks an unchosen submit — but the domain command handler is
+	// the authority. If the placeholder is somehow submitted (empty wine_id),
+	// the handler still rejects it: a 422 re-rendering the form with an inline
+	// wine error and the entered values preserved. See issue #40.
+	srv, _, _ := newTestServer(t)
+
+	rec := postTasting(t, srv, url.Values{
+		"wine_id": {""},
+		"rating":  {"3"},
+		"note":    {"forgot the wine"},
+	})
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnprocessableEntity)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="log-form"`) {
+		t.Errorf("no-wine submit should re-render the form; got:\n%s", body)
+	}
+	if !strings.Contains(body, "please choose a known wine") {
+		t.Errorf("no-wine submit should show the inline wine error; got:\n%s", body)
+	}
+	if !strings.Contains(body, "forgot the wine") {
+		t.Errorf("no-wine submit should preserve the entered note; got:\n%s", body)
+	}
+	if strings.Contains(body, `hx-swap-oob="true"`) {
+		t.Errorf("no-wine failure must not touch the tastings list (no OOB); got:\n%s", body)
+	}
+}
+
 func TestLogTasting_UnknownWineReRendersFormWith422(t *testing.T) {
 	srv, _, _ := newTestServer(t)
 

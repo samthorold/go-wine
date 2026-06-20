@@ -69,6 +69,68 @@ func TestLogForm_FirstPaint(t *testing.T) {
 	}
 }
 
+func TestLogForm_WineDefaultsToPlaceholderNotARealWine(t *testing.T) {
+	// Wine is the one genuinely required field, so a blank form must NOT
+	// pre-select a real Wine: the select defaults to a non-submittable
+	// "Choose a wine…" placeholder. The placeholder carries an empty value and
+	// is disabled so HTML5 `required` blocks submit while it is the selection,
+	// and no real Wine option is selected. See issue #40.
+	model := LogFormModel{
+		Wines: []WineOption{{ID: "w1", Label: "Cloudy Bay — Sauvignon Blanc"}},
+	}
+	html := render(t, LogForm(model))
+
+	// The select is still required (HTML5 first line of defence).
+	if !strings.Contains(html, `<select name="wine_id" required>`) {
+		t.Errorf("wine select should be required; got:\n%s", html)
+	}
+
+	// A disabled, empty-valued placeholder exists and is the selected option.
+	if !strings.Contains(html, `value="" disabled selected`) {
+		t.Errorf("wine select should default to a disabled, empty-valued, selected placeholder; got:\n%s", html)
+	}
+	if !strings.Contains(html, "Choose a wine") {
+		t.Errorf("placeholder should read \"Choose a wine…\"; got:\n%s", html)
+	}
+
+	// No real Wine option is selected on a blank form.
+	for _, frag := range strings.Split(html, "<option")[1:] {
+		open := frag
+		if i := strings.Index(open, ">"); i >= 0 {
+			open = open[:i]
+		}
+		if strings.Contains(open, `value="w1"`) && strings.Contains(open, "selected") {
+			t.Errorf("no real Wine should be selected on a blank form; got:\n%s", open)
+		}
+	}
+}
+
+func TestLogForm_PreservesChosenWineOn422(t *testing.T) {
+	// On a 422 re-render the chosen Wine is preserved: its option is selected
+	// and the placeholder is not. See issue #40.
+	model := LogFormModel{
+		Wines:  []WineOption{{ID: "w1", Label: "Cloudy Bay — Sauvignon Blanc"}},
+		WineID: "w1",
+	}
+	html := render(t, LogForm(model))
+
+	for _, frag := range strings.Split(html, "<option")[1:] {
+		open := frag
+		if i := strings.Index(open, ">"); i >= 0 {
+			open = open[:i]
+		}
+		isReal := strings.Contains(open, `value="w1"`)
+		isPlaceholder := strings.Contains(open, `value=""`)
+		isSelected := strings.Contains(open, "selected")
+		if isReal && !isSelected {
+			t.Errorf("the chosen Wine option should be selected on 422; got:\n%s", open)
+		}
+		if isPlaceholder && isSelected {
+			t.Errorf("the placeholder must not be selected when a real Wine is chosen; got:\n%s", open)
+		}
+	}
+}
+
 func TestLogForm_RatingIsStarRadioGroup(t *testing.T) {
 	// Domain accents are consistent across read and write: a Rating is entered
 	// as stars, not a number <select>. The form renders a CSS-only radio group

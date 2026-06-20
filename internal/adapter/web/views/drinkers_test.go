@@ -9,7 +9,13 @@ func TestDrinkersPage_MarksNoNavLinkActive(t *testing.T) {
 	// Drinkers has no top-level nav link, so no link is marked active.
 	html := render(t, DrinkersPage(nil, DrinkersModel{}))
 
-	if strings.Contains(html, `aria-current="page"`) {
+	// Match a marked nav link, not the bare attribute — the latter also appears
+	// in the layout's active-nav CSS rule (nav a[aria-current="page"]), which is
+	// chrome, not an active link. See issue #43.
+	if strings.Contains(html, `<a href="/tastings" aria-current="page"`) ||
+		strings.Contains(html, `<a href="/wines" aria-current="page"`) ||
+		strings.Contains(html, `<a href="/varieties" aria-current="page"`) ||
+		strings.Contains(html, `<a href="/discovery" aria-current="page"`) {
 		t.Errorf("the drinkers page (no nav link) should mark no nav link active; got:\n%s", html)
 	}
 }

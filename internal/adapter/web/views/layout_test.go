@@ -179,6 +179,32 @@ func TestLayoutStrengthensFormBordersAndFocusRing(t *testing.T) {
 	}
 }
 
+func TestLayoutGivesActiveNavItemACurrentTreatment(t *testing.T) {
+	// The active nav item must read as "you are here", not disabled: Pico's
+	// native aria-current styling renders the current link white, which against
+	// the dark chrome looks greyed-out/disabled rather than current. The one
+	// rationed <style> block adds a scoped rule giving the active nav link an
+	// unambiguous current treatment (accent colour + a visible marker), while
+	// inactive links keep Pico's blue link colour so they stay clickable. This
+	// test locks in the *mechanism* (the scoped rule is present); the exact look
+	// is verified visually + in the PR body. See issue #43 and look-and-feel.md.
+	html := renderLayout(t)
+
+	style := html
+	if i := strings.Index(style, "<style>"); i >= 0 {
+		style = style[i:]
+	}
+	if j := strings.Index(style, "</style>"); j >= 0 {
+		style = style[:j]
+	}
+
+	// The rule is scoped to nav links via the aria-current attribute, so it
+	// styles only the active nav item and not any other aria-current usage.
+	if !strings.Contains(style, `nav a[aria-current="page"]`) {
+		t.Errorf("Layout <style> should scope an active-nav rule to nav a[aria-current=\"page\"]; got:\n%s", style)
+	}
+}
+
 func TestLayoutSwaps422Responses(t *testing.T) {
 	html := renderLayout(t)
 	if !strings.Contains(html, "htmx.config.responseHandling") {
